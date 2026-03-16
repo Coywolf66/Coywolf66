@@ -6,73 +6,80 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <style>
 :root {
-  --bg:#0f172a; --card:#1e293b; --text:#e2e8f0;
-  --accent:#38bdf8; --red:#f87171; --orange:#fb923c;
-  --green:#34d399; --purple:#c084fc; --yellow:#fbbf24;
+  --bg:#131921;     /* Amazon darkest bg */
+  --card:#232F3E;   /* Amazon dark nav */
+  --text:#D5D9D9;   /* Amazon light gray */
+  --accent:#FF9900; /* Amazon orange */
+  --red:#CC0C39;
+  --orange:#E47911;
+  --green:#067D62;
+  --purple:#7B68EE;
+  --yellow:#FEBD69; /* Amazon gold */
 }
 body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
-header{background:#0b1120;padding:1.5rem;text-align:center;border-bottom:1px solid #334155;}
+header{background:#0F1923;padding:1.5rem;text-align:center;border-bottom:2px solid var(--accent);}
 h1{margin:0;color:var(--accent);}
 .container{max-width:1600px;margin:2rem auto;padding:0 1rem;}
-.card{background:var(--card);border-radius:12px;padding:1.5rem;margin-bottom:1.5rem;box-shadow:0 4px 20px rgba(0,0,0,0.3);}
+.card{background:var(--card);border-radius:8px;padding:1.5rem;margin-bottom:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,0.4);border:1px solid #37475A;}
 .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem;margin-bottom:1rem;}
-input,button{padding:0.6rem 1rem;border-radius:8px;border:none;background:#334155;color:white;font-size:0.9rem;}
-button{background:var(--accent);cursor:pointer;font-weight:bold;}
-button:hover:not(:disabled){background:#0ea5e9;}
-button:disabled{background:#475569;cursor:not-allowed;}
+input,button,select{padding:0.6rem 1rem;border-radius:6px;border:1px solid #37475A;background:#37475A;color:var(--text);font-size:0.9rem;}
+input:focus,select:focus{outline:2px solid var(--accent);border-color:var(--accent);}
+button{background:var(--accent);color:#111;cursor:pointer;font-weight:bold;border:none;}
+button:hover:not(:disabled){background:#E47911;}
+button:disabled{background:#37475A;color:#6B7280;cursor:not-allowed;}
 table{width:100%;border-collapse:collapse;margin-top:1rem;font-size:0.9rem;}
-th,td{padding:0.5rem 0.75rem;text-align:left;border-bottom:1px solid #334155;}
-th{background:#1e40af;cursor:pointer;user-select:none;}
+th,td{padding:0.5rem 0.75rem;text-align:left;border-bottom:1px solid #37475A;}
+th{background:#37475A;cursor:pointer;user-select:none;color:var(--yellow);}
 th.sort-asc::after{content:" ▲";}
 th.sort-desc::after{content:" ▼";}
-tr:hover{background:#334155;}
-.pill{display:inline-block;padding:0.2rem 0.6rem;border-radius:1rem;font-size:0.75rem;margin:0.1rem;font-weight:bold;}
-.pill.ok{background:var(--green);color:black;}
+tr:hover{background:#2E3E50;}
+.pill{display:inline-block;padding:0.2rem 0.6rem;border-radius:4px;font-size:0.75rem;margin:0.1rem;font-weight:bold;}
+.pill.ok{background:var(--green);color:white;}
 .pill.technical{background:var(--red);color:white;}
 .pill.process{background:var(--orange);color:white;}
-.pill.jackpot{background:var(--purple);color:white;}
-.pill.s01{background:#3b82f6;color:white;}
-.pill.s02{background:#8b5cf6;color:white;}
-.pill.s03{background:#ec4899;color:white;}
-.pill.s04{background:var(--yellow);color:black;}
-.pill.tba{background:#0ea5e9;color:white;}
-.pill.sp{background:#10b981;color:white;}
-.pill.noread{background:#ec4899;color:white;}
-.pill.other{background:#64748b;color:white;}
-.jackpot{background:#581c87 !important;color:white;}
-.noread-row{background:#3d0a24 !important;color:#fecdd3;}
-#loading{position:fixed;inset:0;background:rgba(0,0,0,0.95);color:white;font-size:2rem;display:flex;align-items:center;justify-content:center;z-index:999;display:none;}
-#debug{background:#000;color:#0f0;padding:1rem;font-family:monospace;max-height:300px;overflow-y:auto;display:none;border:1px solid #0f0;margin:1rem;border-radius:8px;}
+.pill.jackpot{background:var(--accent);color:#111;}
+.pill.s01{background:#0066C0;color:white;}
+.pill.s02{background:#7B68EE;color:white;}
+.pill.s03{background:#C7511F;color:white;}
+.pill.s04{background:var(--yellow);color:#111;}
+.pill.tba{background:#007185;color:white;}
+.pill.sp{background:#067D62;color:white;}
+.pill.noread{background:var(--red);color:white;}
+.pill.other{background:#5D6B79;color:white;}
+.jackpot{background:#5A3500 !important;color:var(--yellow);}
+.noread-row{background:#3D0A0A !important;color:#FFACAC;}
+#loading{position:fixed;inset:0;background:rgba(0,0,0,0.95);color:var(--accent);font-size:2rem;display:flex;align-items:center;justify-content:center;z-index:999;display:none;}
+#debug{background:#000;color:#0f0;padding:1rem;font-family:monospace;max-height:300px;overflow-y:auto;display:none;border:1px solid #0f0;margin:1rem;border-radius:6px;}
 footer{max-width:1600px;margin:0 auto 1rem auto;padding:0 1rem;font-size:0.75rem;opacity:0.65;text-align:right;}
-.filter-hint{font-size:0.8rem;opacity:0.7;margin-top:-0.5rem;}
-.filter-block{background:#0b1120;border-radius:8px;padding:0.5rem 0.75rem;max-height:200px;overflow-y:auto;}
-.filter-title{font-size:0.85rem;font-weight:bold;margin-bottom:0.25rem;opacity:0.8;}
-.filter-block label{display:block;font-size:0.8rem;margin:0.1rem 0;cursor:pointer;}
-.filter-block input[type="checkbox"]{margin-right:0.35rem;}
+.filter-hint{font-size:0.8rem;opacity:0.7;margin-top:0.25rem;}
+.filter-title{font-size:0.85rem;font-weight:bold;margin-bottom:0.3rem;color:var(--yellow);}
+.filter-select{width:100%;min-height:90px;max-height:130px;background:#0F1923;color:var(--text);border:1px solid #37475A;border-radius:6px;padding:0.3rem;font-size:0.82rem;cursor:pointer;}
+.filter-select option{padding:0.25rem 0.4rem;}
+.filter-select option:checked{background:var(--accent);color:#111;}
 
 /* Stats overview */
 .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0.75rem;}
-.stat-box{background:#0b1120;border-radius:8px;padding:1rem;text-align:center;border:1px solid #334155;}
+.stat-box{background:#0F1923;border-radius:6px;padding:1rem;text-align:center;border:1px solid #37475A;}
 .stat-value{font-size:2rem;font-weight:bold;color:var(--accent);display:block;}
 .stat-label{font-size:0.75rem;opacity:0.7;margin-top:0.25rem;display:block;}
 .stat-box.has-error .stat-value{color:var(--red);}
-.stat-box.has-jackpot .stat-value{color:var(--purple);}
-.stat-box.has-noread .stat-value{color:#ec4899;}
+.stat-box.has-jackpot .stat-value{color:var(--yellow);}
+.stat-box.has-noread .stat-value{color:var(--red);}
 
 /* Zone */
 .zone-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle;}
 .zone-legend{display:flex;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;}
-.zone-legend-item{display:flex;align-items:center;font-size:0.8rem;background:#0b1120;padding:0.3rem 0.6rem;border-radius:6px;}
+.zone-legend-item{display:flex;align-items:center;font-size:0.8rem;background:#0F1923;padding:0.3rem 0.6rem;border-radius:4px;border:1px solid #37475A;}
 
 /* Transaction grouping */
-.transaction-group{background:#1a2332;border-left:3px solid var(--accent);margin:0.5rem 0;padding:0.75rem;border-radius:6px;}
+.transaction-group{background:#1C2B3A;border-left:3px solid var(--accent);margin:0.5rem 0;padding:0.75rem;border-radius:6px;}
 .transaction-header{font-weight:bold;color:var(--accent);margin-bottom:0.5rem;font-size:0.95rem;}
-.message-row{background:#0f1829;padding:0.4rem 0.6rem;margin:0.25rem 0;border-radius:4px;font-size:0.85rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;}
-.message-content{color:#cbd5e1;flex:1;min-width:260px;}
+.message-row{background:#131921;padding:0.4rem 0.6rem;margin:0.25rem 0;border-radius:4px;font-size:0.85rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;}
+.message-content{color:var(--text);flex:1;min-width:260px;}
 .group-summary{font-size:0.8rem;opacity:0.7;margin-top:0.3rem;}
-.expand-btn{background:#334155;color:white;border:none;padding:0.3rem 0.6rem;border-radius:4px;cursor:pointer;font-size:0.75rem;}
-.expand-btn:hover{background:#475569;}
-.message-details{display:none;width:100%;margin-top:0.25rem;padding:0.5rem;background:#0a0f1a;border-radius:4px;font-family:monospace;font-size:0.75rem;white-space:pre-wrap;word-break:break-word;}
+.expand-btn{background:#37475A;color:white;border:none;padding:0.3rem 0.6rem;border-radius:4px;cursor:pointer;font-size:0.75rem;}
+.expand-btn:hover{background:#485769;}
+.message-details{display:none;width:100%;margin-top:0.25rem;padding:0.5rem;background:#0C141C;border-radius:4px;font-family:monospace;font-size:0.75rem;white-space:pre-wrap;word-break:break-word;}
 .message-details.expanded{display:block;}
 </style>
 </head>
@@ -118,31 +125,31 @@ footer{max-width:1600px;margin:0 auto 1rem auto;padding:0 1rem;font-size:0.75rem
     </div>
     <div>
       <div class="filter-title">Message Type</div>
-      <div id="messageTypeOptions" class="filter-block"></div>
+      <select id="messageTypeOptions" class="filter-select" multiple></select>
     </div>
     <div>
       <div class="filter-title">Package Type</div>
-      <div id="pkgTypeOptions" class="filter-block"></div>
+      <select id="pkgTypeOptions" class="filter-select" multiple></select>
     </div>
     <div>
       <div class="filter-title">Finger</div>
-      <div id="fingerOptions" class="filter-block"></div>
+      <select id="fingerOptions" class="filter-select" multiple></select>
     </div>
     <div>
       <div class="filter-title">Intended Hamper</div>
-      <div id="intendedOptions" class="filter-block"></div>
+      <select id="intendedOptions" class="filter-select" multiple></select>
     </div>
     <div>
       <div class="filter-title">Actual Hamper</div>
-      <div id="actualOptions" class="filter-block"></div>
+      <select id="actualOptions" class="filter-select" multiple></select>
     </div>
     <div>
       <div class="filter-title">Zone</div>
-      <div id="zoneOptions" class="filter-block"></div>
+      <select id="zoneOptions" class="filter-select" multiple></select>
     </div>
     <div>
       <div class="filter-title">Error Codes</div>
-      <div id="errorOptions" class="filter-block"></div>
+      <select id="errorOptions" class="filter-select" multiple></select>
     </div>
     <div>
       <label>From Date</label>
@@ -153,7 +160,7 @@ footer{max-width:1600px;margin:0 auto 1rem auto;padding:0 1rem;font-size:0.75rem
       <input type="date" id="fToDate" />
     </div>
   </div>
-  <div class="filter-hint">Tip: leave all boxes unchecked in a section to include everything for that dimension.</div>
+  <div class="filter-hint">Tip: hold Ctrl / Cmd to select multiple values. Deselect all to show everything.</div>
 </div>
 
 <div class="card"><h2>Top Issues (with Category)</h2><div id="topIssues"></div></div>
@@ -204,10 +211,10 @@ footer{max-width:1600px;margin:0 auto 1rem auto;padding:0 1rem;font-size:0.75rem
 
 // ── Zone Map ────────────────────────────────────────────────────────────────
 const ZONE_MAP = {
-  "0": { name: "Auto",   desc: "Automatic divert zone",  hamperZone: "All zones",        color: "#94a3b8" },
-  "2": { name: "Early",  desc: "Early divert zone",      hamperZone: "A&B SZ → Zone 1",  color: "#34d399" },
-  "5": { name: "Center", desc: "Center divert zone",     hamperZone: "C&D SZ → Zones 2&3", color: "#38bdf8" },
-  "8": { name: "Late",   desc: "Late divert zone",       hamperZone: "E&G SZ → Zone 4",  color: "#c084fc" }
+  "0": { name: "Auto",   desc: "Automatic divert zone",  hamperZone: "All zones",          color: "#5D6B79" },
+  "2": { name: "Early",  desc: "Early divert zone",      hamperZone: "A&B SZ → Zone 1",   color: "#067D62" },
+  "5": { name: "Center", desc: "Center divert zone",     hamperZone: "C&D SZ → Zones 2&3", color: "#FF9900" },
+  "8": { name: "Late",   desc: "Late divert zone",       hamperZone: "E&G SZ → Zone 4",   color: "#CC0C39" }
 };
 
 function getZoneInfo(zone) {
@@ -495,28 +502,25 @@ const SORT_KEYS = [
 ];
 let currentSort = { key: null, dir: "asc" };
 
-// ── Checkbox Helpers ─────────────────────────────────────────────────────────
-function buildCheckboxes(containerId, values, formatter) {
-  const container = document.getElementById(containerId);
-  if (!container) return;
-  container.innerHTML = "";
+// ── Select Helpers ────────────────────────────────────────────────────────────
+function buildCheckboxes(selectId, values, formatter) {
+  const select = document.getElementById(selectId);
+  if (!select) return;
+  select.innerHTML = "";
   Array.from(values).sort().forEach(v => {
     if (!v) return;
-    const label = document.createElement("label");
-    const cb    = document.createElement("input");
-    cb.type  = "checkbox";
-    cb.value = v;
-    cb.addEventListener("change", refreshViews);
-    label.appendChild(cb);
-    label.appendChild(document.createTextNode(" " + (formatter ? formatter(v) : v)));
-    container.appendChild(label);
+    const opt = document.createElement("option");
+    opt.value = v;
+    opt.textContent = formatter ? formatter(v) : v;
+    select.appendChild(opt);
   });
+  select.onchange = refreshViews;
 }
 
-function getCheckedValues(containerId) {
-  const container = document.getElementById(containerId);
-  if (!container) return [];
-  return Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+function getCheckedValues(selectId) {
+  const select = document.getElementById(selectId);
+  if (!select) return [];
+  return Array.from(select.selectedOptions).map(o => o.value);
 }
 
 // ── Data Processing ──────────────────────────────────────────────────────────
