@@ -2,16 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<title>S04 Decode v1.9 – Sorting System Log Decoder with Transaction Grouping</title>
+<title>S04 Decode v2.0 – Sorting System Log Decoder</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <style>
 :root {
---bg:#0f172a; --card:#1e293b; --text:#e2e8f0;
---accent:#38bdf8; --red:#f87171; --orange:#fb923c;
---green:#34d399; --purple:#c084fc; --yellow:#fbbf24;
+  --bg:#0f172a; --card:#1e293b; --text:#e2e8f0;
+  --accent:#38bdf8; --red:#f87171; --orange:#fb923c;
+  --green:#34d399; --purple:#c084fc; --yellow:#fbbf24;
 }
 body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
-header{background:#0b1120;padding:1.5rem;text-align:center;border-bottom:1px solid 334155_1;}
+header{background:#0b1120;padding:1.5rem;text-align:center;border-bottom:1px solid #334155;}
 h1{margin:0;color:var(--accent);}
 .container{max-width:1600px;margin:2rem auto;padding:0 1rem;}
 .card{background:var(--card);border-radius:12px;padding:1.5rem;margin-bottom:1.5rem;box-shadow:0 4px 20px rgba(0,0,0,0.3);}
@@ -21,7 +21,7 @@ button{background:var(--accent);cursor:pointer;font-weight:bold;}
 button:hover:not(:disabled){background:#0ea5e9;}
 button:disabled{background:#475569;cursor:not-allowed;}
 table{width:100%;border-collapse:collapse;margin-top:1rem;font-size:0.9rem;}
-th,td{padding:0.5rem 0.75rem;text-align:left;border-bottom:1px solid 334155_1;}
+th,td{padding:0.5rem 0.75rem;text-align:left;border-bottom:1px solid #334155;}
 th{background:#1e40af;cursor:pointer;user-select:none;}
 th.sort-asc::after{content:" ▲";}
 th.sort-desc::after{content:" ▼";}
@@ -35,7 +35,12 @@ tr:hover{background:#334155;}
 .pill.s02{background:#8b5cf6;color:white;}
 .pill.s03{background:#ec4899;color:white;}
 .pill.s04{background:var(--yellow);color:black;}
+.pill.tba{background:#0ea5e9;color:white;}
+.pill.sp{background:#10b981;color:white;}
+.pill.noread{background:#ec4899;color:white;}
+.pill.other{background:#64748b;color:white;}
 .jackpot{background:#581c87 !important;color:white;}
+.noread-row{background:#3d0a24 !important;color:#fecdd3;}
 #loading{position:fixed;inset:0;background:rgba(0,0,0,0.95);color:white;font-size:2rem;display:flex;align-items:center;justify-content:center;z-index:999;display:none;}
 #debug{background:#000;color:#0f0;padding:1rem;font-family:monospace;max-height:300px;overflow-y:auto;display:none;border:1px solid #0f0;margin:1rem;border-radius:8px;}
 footer{max-width:1600px;margin:0 auto 1rem auto;padding:0 1rem;font-size:0.75rem;opacity:0.65;text-align:right;}
@@ -45,7 +50,21 @@ footer{max-width:1600px;margin:0 auto 1rem auto;padding:0 1rem;font-size:0.75rem
 .filter-block label{display:block;font-size:0.8rem;margin:0.1rem 0;cursor:pointer;}
 .filter-block input[type="checkbox"]{margin-right:0.35rem;}
 
-/* Transaction grouping styles */
+/* Stats overview */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0.75rem;}
+.stat-box{background:#0b1120;border-radius:8px;padding:1rem;text-align:center;border:1px solid #334155;}
+.stat-value{font-size:2rem;font-weight:bold;color:var(--accent);display:block;}
+.stat-label{font-size:0.75rem;opacity:0.7;margin-top:0.25rem;display:block;}
+.stat-box.has-error .stat-value{color:var(--red);}
+.stat-box.has-jackpot .stat-value{color:var(--purple);}
+.stat-box.has-noread .stat-value{color:#ec4899;}
+
+/* Zone */
+.zone-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:middle;}
+.zone-legend{display:flex;flex-wrap:wrap;gap:0.75rem;margin-bottom:1rem;}
+.zone-legend-item{display:flex;align-items:center;font-size:0.8rem;background:#0b1120;padding:0.3rem 0.6rem;border-radius:6px;}
+
+/* Transaction grouping */
 .transaction-group{background:#1a2332;border-left:3px solid var(--accent);margin:0.5rem 0;padding:0.75rem;border-radius:6px;}
 .transaction-header{font-weight:bold;color:var(--accent);margin-bottom:0.5rem;font-size:0.95rem;}
 .message-row{background:#0f1829;padding:0.4rem 0.6rem;margin:0.25rem 0;border-radius:4px;font-size:0.85rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;}
@@ -60,131 +79,185 @@ footer{max-width:1600px;margin:0 auto 1rem auto;padding:0 1rem;font-size:0.75rem
 
 <body>
 <header>
-<h1>S04 Decode v1.9</h1>
-<p>Transaction Grouping • S01-S04 Messages • Official Error Codes + Categories</p>
+<h1>S04 Decode v2.0</h1>
+<p>Transaction Grouping • S01–S04 Messages • Zone Engine • Package Type Detection • Official Error Codes</p>
 </header>
 
 <div class="container">
+
+<!-- Controls -->
 <div class="card">
-<div class="controls">
-<input type="file" id="file" accept=".csv,.txt" multiple />
-<button id="btnRun" disabled>Run Decoder</button>
-<button id="btnExport" disabled>Export Full CSV</button>
-<button id="btnExportSummary" disabled>Export Chute Summary</button>
-<button id="btnExportTransactions" disabled>Export Transactions</button>
-<button id="btnClear" disabled>Clear</button>
-</div>
-<div>
-<strong>Status:</strong> <span id="status"></span> |
-<strong>Transactions:</strong> <span id="transactionCount">0</span> |
-<strong>Messages:</strong> <span id="rowCount">0</span>
-</div>
+  <div class="controls">
+    <input type="file" id="file" accept=".csv,.txt" multiple />
+    <button id="btnRun" disabled>Run Decoder</button>
+    <button id="btnExport" disabled>Export Full CSV</button>
+    <button id="btnExportSummary" disabled>Export Chute Summary</button>
+    <button id="btnExportTransactions" disabled>Export Transactions</button>
+    <button id="btnClear" disabled>Clear</button>
+  </div>
+  <div>
+    <strong>Status:</strong> <span id="status"></span> |
+    <strong>Transactions:</strong> <span id="transactionCount">0</span> |
+    <strong>Messages:</strong> <span id="rowCount">0</span>
+  </div>
 </div>
 
+<!-- Stats Overview -->
 <div class="card">
-<h2>Filters</h2>
-<div class="controls">
-<div>
-<label>Station (contains)</label>
-<input type="text" id="fStation" placeholder="Station" />
+  <h2>Stats Overview</h2>
+  <div id="statsOverview"><p>Load a file to see stats.</p></div>
 </div>
 
-<div>
-<div class="filter-title">Message Type</div>
-<div id="messageTypeOptions" class="filter-block"></div>
-</div>
-
-<div>
-<div class="filter-title">Finger</div>
-<div id="fingerOptions" class="filter-block"></div>
-</div>
-
-<div>
-<div class="filter-title">Intended Hamper</div>
-<div id="intendedOptions" class="filter-block"></div>
-</div>
-
-<div>
-<div class="filter-title">Actual Hamper</div>
-<div id="actualOptions" class="filter-block"></div>
-</div>
-
-<div>
-<div class="filter-title">Error Codes</div>
-<div id="errorOptions" class="filter-block"></div>
-</div>
-
-<div>
-<label>From Date</label>
-<input type="date" id="fFromDate" />
-</div>
-<div>
-<label>To Date</label>
-<input type="date" id="fToDate" />
-</div>
-</div>
-<div class="filter-hint">Tip: leave all boxes unchecked in a section to include everything for that dimension.</div>
+<!-- Filters -->
+<div class="card">
+  <h2>Filters</h2>
+  <div class="controls">
+    <div>
+      <label>Station (contains)</label>
+      <input type="text" id="fStation" placeholder="Station" />
+    </div>
+    <div>
+      <div class="filter-title">Message Type</div>
+      <div id="messageTypeOptions" class="filter-block"></div>
+    </div>
+    <div>
+      <div class="filter-title">Package Type</div>
+      <div id="pkgTypeOptions" class="filter-block"></div>
+    </div>
+    <div>
+      <div class="filter-title">Finger</div>
+      <div id="fingerOptions" class="filter-block"></div>
+    </div>
+    <div>
+      <div class="filter-title">Intended Hamper</div>
+      <div id="intendedOptions" class="filter-block"></div>
+    </div>
+    <div>
+      <div class="filter-title">Actual Hamper</div>
+      <div id="actualOptions" class="filter-block"></div>
+    </div>
+    <div>
+      <div class="filter-title">Zone</div>
+      <div id="zoneOptions" class="filter-block"></div>
+    </div>
+    <div>
+      <div class="filter-title">Error Codes</div>
+      <div id="errorOptions" class="filter-block"></div>
+    </div>
+    <div>
+      <label>From Date</label>
+      <input type="date" id="fFromDate" />
+    </div>
+    <div>
+      <label>To Date</label>
+      <input type="date" id="fToDate" />
+    </div>
+  </div>
+  <div class="filter-hint">Tip: leave all boxes unchecked in a section to include everything for that dimension.</div>
 </div>
 
 <div class="card"><h2>Top Issues (with Category)</h2><div id="topIssues"></div></div>
 <div class="card"><h2>Issues by Hamper (Actual)</h2><div id="summary"></div></div>
 <div class="card"><h2>Issues by Intended Hamper</h2><div id="summaryIntended"></div></div>
 
+<!-- Zone Distribution -->
 <div class="card">
-<h2>Missing S04 (by Package ID)</h2>
-<div id="missingS04"></div>
+  <h2>S02 Zone Distribution</h2>
+  <div id="zoneLegend" class="zone-legend"></div>
+  <div id="zoneDistribution"></div>
 </div>
 
 <div class="card">
-<h2>Transactions (Grouped by Package ID)</h2>
-<div id="transactions"></div>
+  <h2>Missing S04 (by Package ID)</h2>
+  <div id="missingS04"></div>
+</div>
+
+<div class="card">
+  <h2>Transactions (Grouped by Package ID)</h2>
+  <div id="transactions"></div>
 </div>
 
 <div class="card"><h2>All Events</h2><div id="rows"></div></div>
 </div>
 
-<footer>S04 Decode v1.9 – Built by R. Davenport</footer>
+<footer>S04 Decode v2.0 – Built by R. Davenport</footer>
 
 <div id="loading">Processing...</div>
 <pre id="debug"></pre>
 
 <script>
-/* S04 Decode v1.9 (patched)
- * - Jackpot alias normalization: any S??99 treated as JACKPOT for route equivalence
- * - Suppress false error 07 when requested and actual are equivalent
- * - UI filters remain unchanged (Finger filter uses physical finger field)
+/* S04 Decode v2.0
+ * New in v2.0:
+ * - S02 Hamper Zoning Engine (ZONE_MAP, getZoneInfo)
+ * - S02 field index fix: 7 fields (type,reqId,finger,pkg,dest,flag,time)
+ * - Package Type Detection (TBA / SP / NoRead / Other)
+ * - No-Read package flagging with pink row highlighting
+ * - Zone Distribution view with request/package counts
+ * - Stats Overview panel (8 stat boxes)
+ * - Package Type and Zone filters
+ * Retained from v1.9:
+ * - Jackpot alias normalization (any S??99 → JACKPOT)
+ * - Error 07 suppression for equivalent routes
+ * - Transaction grouping, multi-file CSV, 3 exports, sortable table
+ * - 22 official error codes, S01–S04 + legacy parsing
  */
 
-// OFFICIAL ERROR CODES + CATEGORIES
+// ── Zone Map ────────────────────────────────────────────────────────────────
+const ZONE_MAP = {
+  "0": { name: "Auto",   desc: "Automatic divert zone",  hamperZone: "All zones",        color: "#94a3b8" },
+  "2": { name: "Early",  desc: "Early divert zone",      hamperZone: "A&B SZ → Zone 1",  color: "#34d399" },
+  "5": { name: "Center", desc: "Center divert zone",     hamperZone: "C&D SZ → Zones 2&3", color: "#38bdf8" },
+  "8": { name: "Late",   desc: "Late divert zone",       hamperZone: "E&G SZ → Zone 4",  color: "#c084fc" }
+};
+
+function getZoneInfo(zone) {
+  if (zone === null || zone === undefined || zone === "") {
+    return { name: "No Zone", desc: "No zone suffix", hamperZone: "", color: "#475569" };
+  }
+  const z = String(zone);
+  return ZONE_MAP[z] || { name: `Zone ${z}`, desc: "Unknown zone", hamperZone: "", color: "#6b7280" };
+}
+
+// ── Error Codes ──────────────────────────────────────────────────────────────
 const ERROR_DEFS = {
-  "01": { desc: "Unknown", cat: "Technical" },
-  "02": { desc: "Unexpected container", cat: "Technical" },
-  "03": { desc: "Tracking error", cat: "Technical" },
-  "04": { desc: "Gap error", cat: "Technical" },
-  "05": { desc: "Destination full", cat: "Process" },
-  "06": { desc: "Destination non operable", cat: "Technical" },
-  "07": { desc: "Invalid destination", cat: "Process" },
-  "08": { desc: "No read", cat: "Process" },
-  "09": { desc: "No code", cat: "Technical" },
-  "10": { desc: "Multi label", cat: "Process" },
-  "12": { desc: "Destination disabled", cat: "Process" },
-  "13": { desc: "Throughput limit", cat: "Process" },
-  "14": { desc: "Failed to divert", cat: "Technical" },
-  "16": { desc: "No destination received", cat: "Technical" },
-  "17": { desc: "Lost container", cat: "Technical" },
-  "18": { desc: "Dimension error", cat: "Process" },
-  "19": { desc: "Weight error", cat: "Process" },
-  "20": { desc: "Container utilization", cat: "Technical" },
-  "21": { desc: "Unable to divert", cat: "Technical" },
-  "22": { desc: "Destination not attempted", cat: "Process" }
+  "01": { desc: "Unknown",                   cat: "Technical" },
+  "02": { desc: "Unexpected container",      cat: "Technical" },
+  "03": { desc: "Tracking error",            cat: "Technical" },
+  "04": { desc: "Gap error",                 cat: "Technical" },
+  "05": { desc: "Destination full",          cat: "Process"   },
+  "06": { desc: "Destination non operable",  cat: "Technical" },
+  "07": { desc: "Invalid destination",       cat: "Process"   },
+  "08": { desc: "No read",                   cat: "Process"   },
+  "09": { desc: "No code",                   cat: "Technical" },
+  "10": { desc: "Multi label",               cat: "Process"   },
+  "12": { desc: "Destination disabled",      cat: "Process"   },
+  "13": { desc: "Throughput limit",          cat: "Process"   },
+  "14": { desc: "Failed to divert",          cat: "Technical" },
+  "16": { desc: "No destination received",   cat: "Technical" },
+  "17": { desc: "Lost container",            cat: "Technical" },
+  "18": { desc: "Dimension error",           cat: "Process"   },
+  "19": { desc: "Weight error",              cat: "Process"   },
+  "20": { desc: "Container utilization",     cat: "Technical" },
+  "21": { desc: "Unable to divert",          cat: "Technical" },
+  "22": { desc: "Destination not attempted", cat: "Process"   }
 };
 
 function getErrorInfo(code) {
   if (!code || code === "OK") return { desc: "OK", cat: "OK" };
-  const def = ERROR_DEFS[code] || { desc: "Unknown", cat: "Unknown" };
-  return { desc: def.desc, cat: def.cat };
+  return ERROR_DEFS[code] || { desc: "Unknown", cat: "Unknown" };
 }
 
+// ── Package Type ─────────────────────────────────────────────────────────────
+function getPackageType(packageId) {
+  if (!packageId) return "Other";
+  const id = packageId.toString().trim();
+  if (/^TBA/i.test(id)) return "TBA";
+  if (/^SP/i.test(id))  return "SP";
+  if (/^\?+$/.test(id)) return "NoRead";
+  return "Other";
+}
+
+// ── Utilities ────────────────────────────────────────────────────────────────
 function debug(msg, data) {
   console.log(msg, data);
   const el = document.getElementById("debug");
@@ -199,38 +272,48 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+function pkgTypePill(type) {
+  const cls = (type || "other").toLowerCase();
+  return `<span class="pill ${cls}">${escapeHtml(type || "Other")}</span>`;
+}
+
+// ── Chute Parsing ────────────────────────────────────────────────────────────
 function parseChuteCode(chute) {
   if (!chute || typeof chute !== "string") return null;
   const c = chute.trim();
   if (!/^S\d{4}/.test(c)) return null;
 
-  const finger = parseInt(c.slice(1,3),10);
+  const finger = parseInt(c.slice(1,3), 10);
   let hamperStr, zone = null;
 
   const hash = c.indexOf("#");
   if (hash !== -1) {
-    hamperStr = c.slice(3,hash);
-    const z = parseInt(c.slice(hash+1),10);
+    hamperStr = c.slice(3, hash);
+    const z = parseInt(c.slice(hash + 1), 10);
     zone = isNaN(z) ? null : z;
   } else {
     hamperStr = c.slice(3);
   }
 
-  const hamper = parseInt(hamperStr,10);
+  const hamper = parseInt(hamperStr, 10);
   const isJackpot = hamper === 99;
 
-  const short = isJackpot ? `Jackpot (Hamper 99)` :
-    (zone !== null ? `Finger ${finger}, Hamper ${hamper}, Zone ${zone}` : `Finger ${finger}, Hamper ${hamper}`);
+  const zInfo = getZoneInfo(zone);
+  const short = isJackpot
+    ? "Jackpot (Hamper 99)"
+    : zone !== null
+      ? `Finger ${finger}, Hamper ${hamper}, ${zInfo.name} Zone`
+      : `Finger ${finger}, Hamper ${hamper}`;
 
   return {
     finger, hamper, zone, isJackpot, short,
-    fingerStr: String(finger).padStart(2,"0"),
-    hamperStr: String(hamper).padStart(2,"0")
+    fingerStr: String(finger).padStart(2, "0"),
+    hamperStr: String(hamper).padStart(2, "0"),
+    zoneInfo: zInfo
   };
 }
 
-// Logical chute key for route equivalence.
-// Jackpot: any S??99 -> "JACKPOT" (ignores finger)
+// Logical chute key — any S0x99 maps to "JACKPOT" (ignores finger)
 function chuteKey(parsed, raw) {
   if (parsed && parsed.hamperStr) {
     if (parsed.hamperStr === "99" || parsed.isJackpot) return "JACKPOT";
@@ -242,32 +325,26 @@ function chuteKey(parsed, raw) {
   const m = s.match(/^S(\d{2})(\d{2})(?:#(\d+))?$/);
   if (!m) return s || "UNKNOWN";
 
-  const finger = m[1];
   const hamper = m[2];
-  const zone = m[3] ? `-Z${m[3]}` : "";
-
+  const zone   = m[3] ? `-Z${m[3]}` : "";
   if (hamper === "99") return "JACKPOT";
-  return `F${finger}-H${hamper}${zone}`;
+  return `F${m[1]}-H${hamper}${zone}`;
 }
 
 function extractFinger(fingerRaw) {
   const m = (fingerRaw || "").match(/(\d+)/);
-  return m ? m[1].padStart(2,"0") : "";
+  return m ? m[1].padStart(2, "0") : "";
 }
 
-// Parse S01, S02, S03, S04 messages
+// ── Message Parsing ──────────────────────────────────────────────────────────
 function parseMessage(line) {
   if (!line) return null;
   let clean = line.trim();
 
   if (clean.startsWith('"') && clean.endsWith('"')) clean = clean.slice(1, -1);
+  clean = clean.replace(/\\u0002|\\u0003/gi, "").replace(/[\u0002\u0003]/g, "").trim();
 
-  clean = clean
-    .replace(/\\u0002|\\u0003/gi, "")
-    .replace(/[\u0002\u0003]/g, "")
-    .trim();
-
-  for (let msgType of ["S01","S02","S03","S04"]) {
+  for (const msgType of ["S01", "S02", "S03", "S04"]) {
     const idx = clean.indexOf(msgType + ",");
     if (idx === -1) continue;
 
@@ -277,30 +354,48 @@ function parseMessage(line) {
 
     if (msgType === "S01") {
       if (p.length < 5) continue;
-      return { type:"S01", requestId:p[1], fingerRaw:p[2], fingerStr:extractFinger(p[2]), packageId:p[3], time:p[4], raw:msgClean };
+      return {
+        type: "S01", requestId: p[1], fingerRaw: p[2],
+        fingerStr: extractFinger(p[2]), packageId: p[3], time: p[4], raw: msgClean
+      };
     }
 
     if (msgType === "S02") {
-      if (p.length < 6) continue;
+      // v2.0 fix: 7 fields — type,reqId,finger,pkg,dest,flag,time
+      if (p.length < 7) continue;
       const requested = parseChuteCode(p[4]);
-      return { type:"S02", requestId:p[1], fingerRaw:p[2], fingerStr:extractFinger(p[2]), packageId:p[3], destinationRequest:p[4], requestedChute:requested, time:p[5], raw:msgClean };
+      return {
+        type: "S02", requestId: p[1], fingerRaw: p[2],
+        fingerStr: extractFinger(p[2]), packageId: p[3],
+        destinationRequest: p[4], requestedChute: requested,
+        flag: p[5], time: p[6],
+        zone: requested?.zone != null ? String(requested.zone) : "",
+        raw: msgClean
+      };
     }
 
     if (msgType === "S03") {
       if (p.length < 6) continue;
       const requested = parseChuteCode(p[4]);
-      return { type:"S03", requestId:p[1], fingerRaw:p[2], fingerStr:extractFinger(p[2]), packageId:p[3], destinationRequest:p[4], requestedChute:requested, time:p[5], raw:msgClean };
+      return {
+        type: "S03", requestId: p[1], fingerRaw: p[2],
+        fingerStr: extractFinger(p[2]), packageId: p[3],
+        destinationRequest: p[4], requestedChute: requested,
+        time: p[5],
+        zone: requested?.zone != null ? String(requested.zone) : "",
+        raw: msgClean
+      };
     }
 
     if (msgType === "S04") {
       if (p.length < 8) continue;
 
       const requested = parseChuteCode(p[4]);
-      const actual = parseChuteCode(p[5]);
+      const actual    = parseChuteCode(p[5]);
 
       const codeRaw = (p[6] || "").trim();
       let status_code = codeRaw;
-      let error_code = "";
+      let error_code  = "";
 
       if (codeRaw) {
         const n = parseInt(codeRaw, 10);
@@ -308,96 +403,68 @@ function parseMessage(line) {
       }
 
       const info = getErrorInfo(error_code);
-
-      // Equivalence keys (used to suppress false invalid destination)
       const requestedKey = chuteKey(requested, p[4]);
-      const actualKey = chuteKey(actual, p[5]);
+      const actualKey    = chuteKey(actual, p[5]);
 
-      // Effective error fields for analytics/UI (do NOT change raw status_code/error_code)
       let effective_error_code = error_code;
       let effective_error_desc = info.desc;
-      let effective_error_cat = info.cat;
+      let effective_error_cat  = info.cat;
 
-      // Suppress false "Invalid destination" when requested/actual are equivalent (e.g., any S??99 jackpot alias)
       if (effective_error_code === "07" && requestedKey === actualKey) {
         effective_error_code = "";
         effective_error_desc = "OK (destination alias / equivalent route)";
-        effective_error_cat = "OK";
+        effective_error_cat  = "OK";
       }
 
       return {
-        type:"S04",
-        requestId:p[1],
-        fingerRaw:p[2],
-        fingerStr:extractFinger(p[2]),
-        packageId:p[3],
-        requestedChute:p[4],
-        actualChute:p[5],
-        statusCode:p[6],
-
-        status_code,
-        error_code,
-        error_desc: info.desc,
-        error_cat: info.cat,
-
-        requestedKey,
-        actualKey,
-        effective_error_code,
-        effective_error_desc,
-        effective_error_cat,
-
-        actual,
-        requested,
+        type: "S04", requestId: p[1], fingerRaw: p[2],
+        fingerStr: extractFinger(p[2]), packageId: p[3],
+        requestedChute: p[4], actualChute: p[5], statusCode: p[6],
+        status_code, error_code, error_desc: info.desc, error_cat: info.cat,
+        requestedKey, actualKey,
+        effective_error_code, effective_error_desc, effective_error_cat,
+        actual, requested,
         isJackpot: (actualKey === "JACKPOT"),
-        time:p[7],
-        raw:msgClean
+        zone: requested?.zone != null ? String(requested.zone) : "",
+        time: p[7], raw: msgClean
       };
     }
   }
 
-  // Legacy patterns (kept, but no longer relied on for jackpot equivalence)
+  // Legacy patterns
   if (clean.includes("S9999,S0199")) {
-    return { type:"LEGACY_JACKPOT", finger:"99", dest:"99", intendedHamper:"99", isJackpot:true, raw:clean };
+    return {
+      type: "LEGACY_JACKPOT", finger: "99", dest: "99",
+      intendedHamper: "99", isJackpot: true, raw: clean
+    };
   }
 
   const m = clean.match(/S(\d{2})(\d{2})(?:,[^,]*)?(?:,(\d+))?/);
   if (m) {
     const [, finger, dest, err] = m;
-    const error_code = err ? err.padStart(2,"0") : "";
+    const error_code = err ? err.padStart(2, "0") : "";
     const info = getErrorInfo(error_code);
-
-    // Provide equivalence keys for legacy too
     const fakeParsed = { fingerStr: finger, hamperStr: dest, zone: null, isJackpot: dest === "99" };
     const destKey = chuteKey(fakeParsed, `S${finger}${dest}`);
-
     return {
-      type:"LEGACY",
-      finger,
-      dest,
-      intendedHamper: dest,
-      status_code: error_code,
-      error_code,
-      error_desc: info.desc,
-      error_cat: info.cat,
-
+      type: "LEGACY", finger, dest, intendedHamper: dest,
+      status_code: error_code, error_code,
+      error_desc: info.desc, error_cat: info.cat,
       effective_error_code: error_code,
       effective_error_desc: info.desc,
       effective_error_cat: info.cat,
-
-      requestedKey: destKey,
-      actualKey: destKey,
-
-      raw: clean,
-      isJackpot: destKey === "JACKPOT"
+      requestedKey: destKey, actualKey: destKey,
+      raw: clean, isJackpot: destKey === "JACKPOT"
     };
   }
 
   return null;
 }
 
+// ── CSV Parser ───────────────────────────────────────────────────────────────
 function parseCSV(text) {
   const rows = [];
-  let i=0, cur="", inQ=false, row=[];
+  let i = 0, cur = "", inQ = false, row = [];
   while (i < text.length) {
     const c = text[i];
     if (inQ) {
@@ -406,9 +473,9 @@ function parseCSV(text) {
       else cur += c;
     } else {
       if (c === '"') inQ = true;
-      else if (c === ",") { row.push(cur.trim()); cur=""; }
+      else if (c === ",") { row.push(cur.trim()); cur = ""; }
       else if (c === "\n" || c === "\r") {
-        if (cur.length || row.length) { row.push(cur.trim()); rows.push(row); row=[]; cur=""; }
+        if (cur.length || row.length) { row.push(cur.trim()); rows.push(row); row = []; cur = ""; }
         if (c === "\r" && text[i+1] === "\n") i++;
       } else cur += c;
     }
@@ -418,23 +485,26 @@ function parseCSV(text) {
   return rows;
 }
 
-let processed = [];
+// ── State ────────────────────────────────────────────────────────────────────
+let processed    = [];
 let transactions = {};
 
 const SORT_KEYS = [
-  "station","device_name","timestamp","messageType","finger",
-  "intendedHamper","dest","status_code","error_desc","error_cat","raw"
+  "station","device_name","timestamp","messageType","packageType",
+  "finger","intendedHamper","dest","zone","status_code","error_desc","error_cat","raw"
 ];
-let currentSort = { key:null, dir:"asc" };
+let currentSort = { key: null, dir: "asc" };
 
+// ── Checkbox Helpers ─────────────────────────────────────────────────────────
 function buildCheckboxes(containerId, values, formatter) {
   const container = document.getElementById(containerId);
+  if (!container) return;
   container.innerHTML = "";
   Array.from(values).sort().forEach(v => {
     if (!v) return;
     const label = document.createElement("label");
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
+    const cb    = document.createElement("input");
+    cb.type  = "checkbox";
     cb.value = v;
     cb.addEventListener("change", refreshViews);
     label.appendChild(cb);
@@ -449,6 +519,7 @@ function getCheckedValues(containerId) {
   return Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
 }
 
+// ── Data Processing ──────────────────────────────────────────────────────────
 function handleRows(rows) {
   document.getElementById("debug").innerHTML = "";
   document.getElementById("loading").style.display = "flex";
@@ -458,36 +529,37 @@ function handleRows(rows) {
     if (!rows.length) throw new Error("Empty file(s)");
     const header = rows[0].map(h => (h || "").trim().toLowerCase());
     const idx = {
-      payload: header.indexOf("payload"),
-      station: header.indexOf("station"),
+      payload:    header.indexOf("payload"),
+      station:    header.indexOf("station"),
       device_name: header.indexOf("device_name"),
-      timestamp: header.indexOf("timestamp")
+      timestamp:  header.indexOf("timestamp")
     };
     if (idx.payload === -1) throw new Error("No 'payload' column");
 
-    processed = [];
+    processed    = [];
     transactions = {};
 
-    const errorSet = new Set(["OK"]);
-    const fingerSet = new Set();
+    const errorSet   = new Set(["OK"]);
+    const fingerSet  = new Set();
     const intendedSet = new Set();
-    const actualSet = new Set();
+    const actualSet  = new Set();
     const msgTypeSet = new Set();
+    const pkgTypeSet = new Set();
+    const zoneSet    = new Set();
 
     let valid = 0;
 
-    for (let i=1; i<rows.length; i++) {
+    for (let i = 1; i < rows.length; i++) {
       const r = rows[i];
       if (!r || !r.length) continue;
 
       const msg = parseMessage(r[idx.payload] || "");
       if (!msg) {
         processed.push({
-          station: idx.station > -1 ? r[idx.station] : "",
+          station:    idx.station    > -1 ? r[idx.station]    : "",
           device_name: idx.device_name > -1 ? r[idx.device_name] : "",
-          timestamp: idx.timestamp > -1 ? r[idx.timestamp] : "",
-          ok: false,
-          raw: r[idx.payload] || ""
+          timestamp:  idx.timestamp  > -1 ? r[idx.timestamp]  : "",
+          ok: false, raw: r[idx.payload] || ""
         });
         continue;
       }
@@ -498,38 +570,50 @@ function handleRows(rows) {
       if (!ts && msg.time) ts = msg.time;
       const parsedTs = ts ? new Date(ts) : null;
 
+      // Package type
+      const pkgType = getPackageType(msg.packageId);
+      const isNoRead = (pkgType === "NoRead");
+
       const rowObj = {
-        station: idx.station > -1 ? r[idx.station] : "",
+        station:    idx.station    > -1 ? r[idx.station]    : "",
         device_name: idx.device_name > -1 ? r[idx.device_name] : "",
-        timestamp: ts,
+        timestamp:  ts,
         parsedTimestamp: parsedTs && !isNaN(parsedTs) ? parsedTs.toISOString() : "",
         messageType: msg.type,
+        packageType: pkgType,
+        isNoRead,
         ok: true,
+        zone: msg.zone || "",
         ...msg
       };
 
       if (msg.type === "S04") {
-        rowObj.finger = msg.actual?.fingerStr || msg.fingerStr || "";
-        rowObj.dest = msg.actual?.hamperStr || "";
+        rowObj.finger        = msg.actual?.fingerStr || msg.fingerStr || "";
+        rowObj.dest          = msg.actual?.hamperStr || "";
         rowObj.intendedHamper = msg.requested?.hamperStr || "";
-
+        rowObj.zone          = msg.requested?.zone != null ? String(msg.requested.zone) : "";
         if (msg.effective_error_code) errorSet.add(msg.effective_error_code);
-      } else if (msg.type === "S01" || msg.type === "S02" || msg.type === "S03") {
+      } else if (msg.type === "S01") {
         rowObj.finger = msg.fingerStr || "";
-        if (msg.type === "S02" || msg.type === "S03") rowObj.intendedHamper = msg.requestedChute?.hamperStr || "";
+      } else if (msg.type === "S02" || msg.type === "S03") {
+        rowObj.finger = msg.fingerStr || "";
+        rowObj.intendedHamper = msg.requestedChute?.hamperStr || "";
+        rowObj.zone  = msg.requestedChute?.zone != null ? String(msg.requestedChute.zone) : "";
       } else if (msg.type === "LEGACY" || msg.type === "LEGACY_JACKPOT") {
-        rowObj.finger = msg.finger || "";
-        rowObj.dest = msg.dest || "";
+        rowObj.finger        = msg.finger || "";
+        rowObj.dest          = msg.dest || "";
         rowObj.intendedHamper = msg.intendedHamper || "";
         if (msg.effective_error_code) errorSet.add(msg.effective_error_code);
       }
 
       processed.push(rowObj);
 
-      if (rowObj.finger) fingerSet.add(rowObj.finger);
+      if (rowObj.finger)        fingerSet.add(rowObj.finger);
       if (rowObj.intendedHamper) intendedSet.add(rowObj.intendedHamper);
-      if (rowObj.dest) actualSet.add(rowObj.dest);
-      if (rowObj.messageType) msgTypeSet.add(rowObj.messageType);
+      if (rowObj.dest)          actualSet.add(rowObj.dest);
+      if (rowObj.messageType)   msgTypeSet.add(rowObj.messageType);
+      if (rowObj.packageType)   pkgTypeSet.add(rowObj.packageType);
+      if (rowObj.zone)          zoneSet.add(rowObj.zone);
 
       if (msg.packageId) {
         if (!transactions[msg.packageId]) transactions[msg.packageId] = [];
@@ -537,28 +621,33 @@ function handleRows(rows) {
       }
     }
 
+    // Sort messages within each transaction
     Object.keys(transactions).forEach(pkgId => {
-      transactions[pkgId].sort((a,b) => {
+      transactions[pkgId].sort((a, b) => {
         const order = { S01:1, S02:2, S03:3, S04:4, LEGACY:50, LEGACY_JACKPOT:51 };
         const oa = order[a.messageType] || 99;
         const ob = order[b.messageType] || 99;
         if (oa !== ob) return oa - ob;
-        const ta = a.parsedTimestamp || a.timestamp || "";
-        const tb = b.parsedTimestamp || b.timestamp || "";
-        return ta.localeCompare(tb);
+        return (a.parsedTimestamp || a.timestamp || "").localeCompare(b.parsedTimestamp || b.timestamp || "");
       });
     });
 
     buildCheckboxes("messageTypeOptions", msgTypeSet, v => v);
-    buildCheckboxes("fingerOptions", fingerSet, v => `Finger ${v}`);
-    buildCheckboxes("intendedOptions", intendedSet, v => `Hamper ${v}`);
-    buildCheckboxes("actualOptions", actualSet, v => `Hamper ${v}`);
+    buildCheckboxes("fingerOptions",      fingerSet,  v => `Finger ${v}`);
+    buildCheckboxes("intendedOptions",    intendedSet, v => `Hamper ${v}`);
+    buildCheckboxes("actualOptions",      actualSet,   v => `Hamper ${v}`);
+    buildCheckboxes("pkgTypeOptions",     pkgTypeSet,  v => v);
+    buildCheckboxes("zoneOptions",        zoneSet,     v => {
+      const info = getZoneInfo(v);
+      return `#${v}: ${info.name}${info.hamperZone ? " (" + info.hamperZone + ")" : ""}`;
+    });
     buildCheckboxes("errorOptions", errorSet, v => {
       if (v === "OK") return "OK (No Error)";
       const info = getErrorInfo(v);
       return `${v}: ${info.desc} (${info.cat})`;
     });
 
+    renderZoneLegend();
     setButtonsEnabled(true);
     refreshViews();
     document.getElementById("status").textContent =
@@ -571,6 +660,91 @@ function handleRows(rows) {
   }
 }
 
+// ── Zone Legend ───────────────────────────────────────────────────────────────
+function renderZoneLegend() {
+  const el = document.getElementById("zoneLegend");
+  if (!el) return;
+  el.innerHTML = Object.entries(ZONE_MAP).map(([code, info]) =>
+    `<div class="zone-legend-item">
+      <span class="zone-dot" style="background:${info.color}"></span>
+      <strong>#${code} ${info.name}</strong>&nbsp;—&nbsp;${info.hamperZone}
+    </div>`
+  ).join("");
+}
+
+// ── Stats Overview ────────────────────────────────────────────────────────────
+function renderStatsOverview(data) {
+  const el = document.getElementById("statsOverview");
+  if (!el) return;
+
+  const uniquePkgs = new Set(data.map(d => d.packageId).filter(Boolean)).size;
+  const s04Count   = data.filter(d => d.messageType === "S04").length;
+  const s04Errors  = data.filter(d => d.messageType === "S04" && d.effective_error_code).length;
+  const jackpots   = data.filter(d => d.isJackpot).length;
+  const noReads    = data.filter(d => d.isNoRead).length;
+  const tbaPkgs    = new Set(data.filter(d => d.packageType === "TBA"    && d.packageId).map(d => d.packageId)).size;
+  const spPkgs     = new Set(data.filter(d => d.packageType === "SP"     && d.packageId).map(d => d.packageId)).size;
+
+  const stats = [
+    { label: "Total Messages",     value: data.length, cls: "" },
+    { label: "Unique Packages",    value: uniquePkgs,  cls: "" },
+    { label: "S04 Confirmations",  value: s04Count,    cls: "" },
+    { label: "S04 Errors",         value: s04Errors,   cls: s04Errors > 0 ? "has-error" : "" },
+    { label: "Jackpots",           value: jackpots,    cls: jackpots  > 0 ? "has-jackpot" : "" },
+    { label: "No Reads",           value: noReads,     cls: noReads   > 0 ? "has-noread" : "" },
+    { label: "TBA Packages",       value: tbaPkgs,     cls: "" },
+    { label: "SP Packages",        value: spPkgs,      cls: "" }
+  ];
+
+  el.innerHTML = `<div class="stats-grid">${
+    stats.map(s => `<div class="stat-box ${s.cls}">
+      <span class="stat-value">${s.value}</span>
+      <span class="stat-label">${escapeHtml(s.label)}</span>
+    </div>`).join("")
+  }</div>`;
+}
+
+// ── Zone Distribution ─────────────────────────────────────────────────────────
+function renderZoneDistribution(data) {
+  const el = document.getElementById("zoneDistribution");
+  if (!el) return;
+
+  const s02Data = data.filter(d => d.messageType === "S02");
+  if (!s02Data.length) {
+    el.innerHTML = "<p>No S02 data in current filter.</p>";
+    return;
+  }
+
+  const byZone = {};
+  s02Data.forEach(d => {
+    const zone = d.zone || "none";
+    if (!byZone[zone]) byZone[zone] = { count: 0, packages: new Set() };
+    byZone[zone].count++;
+    if (d.packageId) byZone[zone].packages.add(d.packageId);
+  });
+
+  const total = s02Data.length;
+  const rows = Object.entries(byZone)
+    .sort((a, b) => b[1].count - a[1].count)
+    .map(([zone, info]) => {
+      const zi = zone === "none" ? { name: "No Zone", color: "#475569", hamperZone: "" } : getZoneInfo(zone);
+      const pct = total > 0 ? (info.count / total * 100).toFixed(1) : "0";
+      const hzNote = zi.hamperZone ? ` <span style="opacity:0.6;font-size:0.78em">(${escapeHtml(zi.hamperZone)})</span>` : "";
+      return `<tr>
+        <td><span class="zone-dot" style="background:${zi.color}"></span>${escapeHtml(zi.name)}${hzNote}</td>
+        <td>${info.count}</td>
+        <td>${info.packages.size}</td>
+        <td>${pct}%</td>
+      </tr>`;
+    });
+
+  el.innerHTML = `<table>
+<thead><tr><th>Zone</th><th>Requests</th><th>Unique Packages</th><th>%</th></tr></thead>
+<tbody>${rows.join("")}</tbody>
+</table>`;
+}
+
+// ── Top Issues ────────────────────────────────────────────────────────────────
 function renderTopIssues(data) {
   const counts = {};
   data.forEach(d => {
@@ -579,61 +753,41 @@ function renderTopIssues(data) {
     counts[key] = (counts[key] || 0) + 1;
   });
 
-  const total = Object.values(counts).reduce((a,b)=>a+b, 0);
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([code, cnt]) => {
+    const info = code === "OK" ? { desc: "OK", cat: "OK" } : getErrorInfo(code);
+    const catClass = info.cat === "Technical" ? "technical" : info.cat === "Process" ? "process" : "ok";
+    return `<tr>
+      <td>${escapeHtml(code)}</td>
+      <td>${escapeHtml(info.desc)}</td>
+      <td><span class="pill ${catClass}">${escapeHtml(info.cat)}</span></td>
+      <td>${cnt}</td>
+      <td>${total > 0 ? (cnt/total*100).toFixed(1) + "%" : "0%"}</td>
+    </tr>`;
+  });
 
-  const rows = Object.entries(counts)
-    .sort((a,b)=>b[1]-a[1])
-    .map(([code,cnt]) => {
-      let desc = "OK";
-      let cat = "OK";
-      if (code !== "OK") {
-        const info = getErrorInfo(code);
-        desc = info.desc;
-        cat = info.cat;
-      }
-      const catClass = cat==="Technical" ? "technical" : cat==="Process" ? "process" : "ok";
-      return [
-        code,
-        desc,
-        `<span class="pill ${catClass}">${escapeHtml(cat)}</span>`,
-        cnt,
-        total > 0 ? (cnt/total*100).toFixed(1)+"%" : "0%"
-      ];
-    });
-
-  document.getElementById("topIssues").innerHTML = rows.length ? `<table>
-<thead><tr><th>Code</th><th>Description</th><th>Category</th><th>Count</th><th>%</th></tr></thead>
-<tbody>${rows.map(r=>`<tr><td>${escapeHtml(r[0])}</td><td>${escapeHtml(r[1])}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4]}</td></tr>`).join("")}</tbody>
-</table>` : "No data";
+  document.getElementById("topIssues").innerHTML = rows.length
+    ? `<table><thead><tr><th>Code</th><th>Description</th><th>Category</th><th>Count</th><th>%</th></tr></thead><tbody>${rows.join("")}</tbody></table>`
+    : "No data";
 }
 
+// ── Summary Tables ────────────────────────────────────────────────────────────
 function summaryTableHTML(byKey) {
   const rows = Object.entries(byKey)
-    .map(([key,codes]) => {
-      const total = Object.values(codes).reduce((a,b)=>a+b,0);
-      const errorList = Object.entries(codes)
-        .sort((a,b)=>b[1]-a[1])
-        .map(([code,cnt]) => {
-          let desc = "OK";
-          let cat = "OK";
-          if (code !== "OK") {
-            const info = getErrorInfo(code);
-            desc = info.desc;
-            cat = info.cat;
-          }
-          const cls = code==="OK" ? "ok" : cat==="Technical" ? "technical" : "process";
-          return `<span class="pill ${cls}">${escapeHtml(code)}: ${escapeHtml(desc)} (${cnt})</span>`;
-        }).join("<br>");
+    .map(([key, codes]) => {
+      const total = Object.values(codes).reduce((a, b) => a + b, 0);
+      const errorList = Object.entries(codes).sort((a, b) => b[1] - a[1]).map(([code, cnt]) => {
+        const info = code === "OK" ? { desc: "OK", cat: "OK" } : getErrorInfo(code);
+        const cls  = code === "OK" ? "ok" : info.cat === "Technical" ? "technical" : "process";
+        return `<span class="pill ${cls}">${escapeHtml(code)}: ${escapeHtml(info.desc)} (${cnt})</span>`;
+      }).join("<br>");
       return [key, total, errorList];
     })
-    .sort((a,b)=>b[1]-a[1]);
+    .sort((a, b) => b[1] - a[1]);
 
   if (!rows.length) return "No data";
-
-  return `<table>
-<thead><tr><th>Hamper</th><th>Total</th><th>Breakdown</th></tr></thead>
-<tbody>${rows.map(r=>`<tr><td>${escapeHtml(r[0])}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join("")}</tbody>
-</table>`;
+  return `<table><thead><tr><th>Hamper</th><th>Total</th><th>Breakdown</th></tr></thead>
+<tbody>${rows.map(r => `<tr><td>${escapeHtml(r[0])}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join("")}</tbody></table>`;
 }
 
 function renderSummaryActual(data) {
@@ -660,6 +814,39 @@ function renderSummaryIntended(data) {
   document.getElementById("summaryIntended").innerHTML = summaryTableHTML(byHamper);
 }
 
+// ── Missing S04 ───────────────────────────────────────────────────────────────
+function renderMissingS04(filteredTransactions) {
+  const el = document.getElementById("missingS04");
+  if (!el) return;
+
+  const rows = [];
+  for (const [pkgId, msgs] of Object.entries(filteredTransactions)) {
+    const has = { S01: false, S02: false, S03: false, S04: false };
+    let lastTs = "";
+    for (const m of msgs) {
+      if (has[m.messageType] !== undefined) has[m.messageType] = true;
+      const t = m.parsedTimestamp || m.timestamp || m.time || "";
+      if (t && t > lastTs) lastTs = t;
+    }
+    if ((has.S01 || has.S02 || has.S03) && !has.S04) {
+      rows.push({
+        pkgId, lastTs,
+        presence: `S01:${has.S01?"✓":"—"} S02:${has.S02?"✓":"—"} S03:${has.S03?"✓":"—"} S04:${has.S04?"✓":"—"}`
+      });
+    }
+  }
+
+  rows.sort((a, b) => (b.lastTs || "").localeCompare(a.lastTs || ""));
+  if (!rows.length) {
+    el.innerHTML = "<p>No missing S04 found (within current filters).</p>";
+    return;
+  }
+
+  el.innerHTML = `<table><thead><tr><th>Package ID</th><th>Last Time</th><th>Presence</th></tr></thead>
+<tbody>${rows.map(r => `<tr><td>${escapeHtml(r.pkgId)}</td><td>${escapeHtml(r.lastTs)}</td><td>${escapeHtml(r.presence)}</td></tr>`).join("")}</tbody></table>`;
+}
+
+// ── Transaction Rendering ─────────────────────────────────────────────────────
 window.toggleDetails = function(id) {
   const el = document.getElementById(id);
   if (el) el.classList.toggle("expanded");
@@ -667,39 +854,39 @@ window.toggleDetails = function(id) {
 
 function renderTransactions(filteredTransactions) {
   const container = document.getElementById("transactions");
-  const entries = Object.entries(filteredTransactions);
+  const entries   = Object.entries(filteredTransactions);
 
-  if (entries.length === 0) {
+  if (!entries.length) {
     container.innerHTML = "<p>No transactions found</p>";
     return;
   }
 
   let html = "";
   entries
-    .sort((a,b) => {
-      const aTime = a[1][0]?.parsedTimestamp || a[1][0]?.timestamp || "";
-      const bTime = b[1][0]?.parsedTimestamp || b[1][0]?.timestamp || "";
-      return bTime.localeCompare(aTime);
+    .sort((a, b) => {
+      const at = a[1][0]?.parsedTimestamp || a[1][0]?.timestamp || "";
+      const bt = b[1][0]?.parsedTimestamp || b[1][0]?.timestamp || "";
+      return bt.localeCompare(at);
     })
     .forEach(([pkgId, messages]) => {
-      const s04Msg = messages.find(m => m.messageType === "S04");
+      const s04Msg   = messages.find(m => m.messageType === "S04");
       const hasError = !!(s04Msg && (s04Msg.effective_error_code || s04Msg.error_code));
       const isJackpot = s04Msg?.actualKey === "JACKPOT" || s04Msg?.isJackpot || false;
+      const pkgType  = getPackageType(pkgId);
+      const isNoRead = pkgType === "NoRead";
 
-      html += `<div class="transaction-group">`;
+      html += `<div class="transaction-group${isNoRead ? " noread-row" : ""}">`;
       html += `<div class="transaction-header">
-        Package: ${escapeHtml(pkgId)}
+        Package: ${escapeHtml(pkgId)} ${pkgTypePill(pkgType)}
         ${isJackpot ? '<span class="pill jackpot">JACKPOT</span>' : ""}
-        ${
-          hasError
-            ? `<span class="pill technical">ERROR: ${escapeHtml(s04Msg.effective_error_code || s04Msg.error_code || "")}</span>`
-            : '<span class="pill ok">OK</span>'
-        }
+        ${hasError
+          ? `<span class="pill technical">ERROR: ${escapeHtml(s04Msg.effective_error_code || s04Msg.error_code || "")}</span>`
+          : '<span class="pill ok">OK</span>'}
       </div>`;
 
-      messages.forEach((msg, idx) => {
+      messages.forEach((msg, i) => {
         const msgClass = (msg.messageType || "").toLowerCase();
-        const detailId = `d_${pkgId}_${msg.messageType}_${idx}`.replace(/[^a-zA-Z0-9_]/g, "_");
+        const detailId = `d_${pkgId}_${msg.messageType}_${i}`.replace(/[^a-zA-Z0-9_]/g, "_");
 
         html += `<div class="message-row">`;
         html += msg.messageType ? `<span class="pill ${msgClass}">${escapeHtml(msg.messageType)}</span>` : "";
@@ -707,20 +894,20 @@ function renderTransactions(filteredTransactions) {
         if (msg.messageType === "S01") {
           html += `<span class="message-content">Entry: Finger ${escapeHtml(msg.fingerStr || "")} | Time: ${escapeHtml(msg.time || msg.timestamp || "")}</span>`;
         } else if (msg.messageType === "S02") {
-          html += `<span class="message-content">Request: ${escapeHtml(msg.destinationRequest || "")} | Finger ${escapeHtml(msg.fingerStr || "")}</span>`;
+          const zi = msg.requestedChute?.zone != null ? getZoneInfo(msg.requestedChute.zone) : null;
+          const zonePart = zi ? ` | <span class="zone-dot" style="background:${zi.color}"></span>${escapeHtml(zi.name)}` : "";
+          html += `<span class="message-content">Request: ${escapeHtml(msg.destinationRequest || "")} | Finger ${escapeHtml(msg.fingerStr || "")}${zonePart}</span>`;
         } else if (msg.messageType === "S03") {
           html += `<span class="message-content">Confirm: ${escapeHtml(msg.destinationRequest || "")} | Finger ${escapeHtml(msg.fingerStr || "")}</span>`;
         } else if (msg.messageType === "S04") {
           let line = `Complete: ${msg.requestedChute || ""} → ${msg.actualChute || ""} | Status: ${msg.statusCode || "OK"}`;
-
           if (msg.error_code && !msg.effective_error_code && msg.error_code === "07" && msg.requestedKey === msg.actualKey) {
-            line += ` | Note: Jackpot alias (equivalent)`;
+            line += " | Note: Jackpot alias (equivalent)";
           } else if (msg.effective_error_code) {
             line += ` | Error: ${msg.effective_error_desc || ""}`;
           } else if (msg.error_code) {
             line += ` | Error: ${msg.error_desc || ""}`;
           }
-
           html += `<span class="message-content">${escapeHtml(line)}</span>`;
         } else {
           html += `<span class="message-content">${escapeHtml(msg.raw || "")}</span>`;
@@ -738,76 +925,48 @@ function renderTransactions(filteredTransactions) {
   container.innerHTML = html;
 }
 
-function renderMissingS04(filteredTransactions) {
-  const el = document.getElementById("missingS04");
-  if (!el) return;
-
-  const rows = [];
-  for (const [pkgId, msgs] of Object.entries(filteredTransactions)) {
-    const has = { S01:false, S02:false, S03:false, S04:false };
-    let lastTs = "";
-    for (const m of msgs) {
-      if (has[m.messageType] !== undefined) has[m.messageType] = true;
-      const t = m.parsedTimestamp || m.timestamp || m.time || "";
-      if (t && t > lastTs) lastTs = t;
-    }
-    const hasUpstream = has.S01 || has.S02 || has.S03;
-    if (hasUpstream && !has.S04) {
-      rows.push({
-        pkgId, lastTs,
-        presence: `S01:${has.S01?"✓":"—"} S02:${has.S02?"✓":"—"} S03:${has.S03?"✓":"—"} S04:${has.S04?"✓":"—"}`
-      });
-    }
-  }
-
-  rows.sort((a,b) => (b.lastTs || "").localeCompare(a.lastTs || ""));
-
-  if (!rows.length) {
-    el.innerHTML = "<p>No missing S04 found (within current filters).</p>";
-    return;
-  }
-
-  el.innerHTML = `<table>
-<thead><tr><th>Package ID</th><th>Last Time</th><th>Presence</th></tr></thead>
-<tbody>
-${rows.map(r=>`<tr><td>${escapeHtml(r.pkgId)}</td><td>${escapeHtml(r.lastTs)}</td><td>${escapeHtml(r.presence)}</td></tr>`).join("")}
-</tbody>
-</table>`;
-}
-
+// ── All Events Table ──────────────────────────────────────────────────────────
 function renderParsedRows(data) {
-  const headers = ["Station","Device","Time","Type","Finger","Intended","Actual","Code","Description","Category","Payload"];
+  const headers = ["Station","Device","Time","Type","PkgType","Finger","Intended","Actual","Zone","Code","Description","Category","Payload"];
   const rows = [];
 
   data.forEach(d => {
     const effCode = d.effective_error_code || "";
     const effDesc = d.effective_error_desc || "";
-    const effCat = d.effective_error_cat || "";
+    const effCat  = d.effective_error_cat  || "";
+    const catClass = effCat === "Technical" ? "technical" : effCat === "Process" ? "process" : "ok";
 
-    const catClass = effCat==="Technical" ? "technical" : effCat==="Process" ? "process" : "ok";
+    const zoneVal = d.zone || "";
+    const zi = zoneVal ? getZoneInfo(zoneVal) : null;
+    const zoneDisplay = zi ? `<span class="zone-dot" style="background:${zi.color}"></span>${escapeHtml(zi.name)}` : "";
 
     const cells = [
       d.station || "",
       d.device_name || "",
       d.timestamp ? String(d.timestamp).slice(11,19) : "",
       d.messageType ? `<span class="pill ${(d.messageType||"").toLowerCase()}">${escapeHtml(d.messageType)}</span>` : "",
+      pkgTypePill(d.packageType || "Other"),
       d.finger || "",
       d.intendedHamper || "",
       d.dest || "",
+      zoneDisplay,
       effCode || "OK",
       effDesc || "OK",
-      effCat ? `<span class="pill ${catClass}">${escapeHtml(effCat)}</span>` : `<span class="pill ok">OK</span>`,
-      d.raw ? escapeHtml(d.raw.slice(0,60) + (d.raw.length>60 ? "..." : "")) : ""
+      effCat  ? `<span class="pill ${catClass}">${escapeHtml(effCat)}</span>` : `<span class="pill ok">OK</span>`,
+      d.raw ? escapeHtml(d.raw.slice(0,60) + (d.raw.length > 60 ? "..." : "")) : ""
     ];
 
     const isJackpot = d.dest === "99" || d.isJackpot;
-    rows.push({ cells, isJackpot });
+    const trClass   = d.isNoRead ? "noread-row" : isJackpot ? "jackpot" : "";
+    rows.push({ cells, trClass });
   });
 
-  const html = rows.length ? `<table>
-<thead><tr>${headers.map(h=>`<th>${h}</th>`).join("")}</tr></thead>
-<tbody>${rows.map(r=>`<tr${r.isJackpot ? ' class="jackpot"' : ''}>${r.cells.map(c=>`<td>${c}</td>`).join("")}</tr>`).join("")}</tbody>
-</table>` : "No data";
+  const html = rows.length
+    ? `<table>
+<thead><tr>${headers.map(h => `<th>${h}</th>`).join("")}</tr></thead>
+<tbody>${rows.map(r => `<tr${r.trClass ? ` class="${r.trClass}"` : ""}>${r.cells.map(c => `<td>${c}</td>`).join("")}</tr>`).join("")}</tbody>
+</table>`
+    : "No data";
 
   const container = document.getElementById("rows");
   container.innerHTML = html;
@@ -815,12 +974,10 @@ function renderParsedRows(data) {
   const table = container.querySelector("table");
   if (!table) return;
 
-  const ths = table.querySelectorAll("thead th");
-  ths.forEach((th, idx) => {
+  table.querySelectorAll("thead th").forEach((th, idx) => {
     const key = SORT_KEYS[idx];
-    th.classList.remove("sort-asc","sort-desc");
+    th.classList.remove("sort-asc", "sort-desc");
     if (currentSort.key === key) th.classList.add(currentSort.dir === "asc" ? "sort-asc" : "sort-desc");
-
     th.addEventListener("click", () => {
       if (!key) return;
       if (currentSort.key === key) currentSort.dir = currentSort.dir === "asc" ? "desc" : "asc";
@@ -830,65 +987,59 @@ function renderParsedRows(data) {
   });
 }
 
-function compareForSort(a,b,key) {
-  let va, vb;
-
+function compareForSort(a, b, key) {
   if (key === "timestamp") {
-    va = a.parsedTimestamp || a.timestamp || "";
-    vb = b.parsedTimestamp || b.timestamp || "";
+    const va = a.parsedTimestamp || a.timestamp || "";
+    const vb = b.parsedTimestamp || b.timestamp || "";
     return va < vb ? -1 : va > vb ? 1 : 0;
   }
 
-  va = a[key];
-  vb = b[key];
-
-  if (["finger","dest","status_code","intendedHamper"].includes(key)) {
-    const na = parseInt(va,10);
-    const nb = parseInt(vb,10);
+  let va = a[key], vb = b[key];
+  if (["finger","dest","status_code","intendedHamper","zone"].includes(key)) {
+    const na = parseInt(va, 10), nb = parseInt(vb, 10);
     if (!isNaN(na) && !isNaN(nb)) return na < nb ? -1 : na > nb ? 1 : 0;
   }
-
   va = (va ?? "").toString();
   vb = (vb ?? "").toString();
   return va < vb ? -1 : va > vb ? 1 : 0;
 }
 
+// ── Filter Logic ──────────────────────────────────────────────────────────────
 function getFilteredData() {
   const stationFilter = document.getElementById("fStation").value.trim().toLowerCase();
-  const msgTypes = getCheckedValues("messageTypeOptions");
-  const fingers = getCheckedValues("fingerOptions");
+  const msgTypes  = getCheckedValues("messageTypeOptions");
+  const fingers   = getCheckedValues("fingerOptions");
   const intendeds = getCheckedValues("intendedOptions");
-  const actuals = getCheckedValues("actualOptions");
-  const errors = getCheckedValues("errorOptions");
-  const fromDate = document.getElementById("fFromDate").value;
-  const toDate = document.getElementById("fToDate").value;
+  const actuals   = getCheckedValues("actualOptions");
+  const errors    = getCheckedValues("errorOptions");
+  const pkgTypes  = getCheckedValues("pkgTypeOptions");
+  const zones     = getCheckedValues("zoneOptions");
+  const fromDate  = document.getElementById("fFromDate").value;
+  const toDate    = document.getElementById("fToDate").value;
 
   return processed.filter(row => {
     if (stationFilter) {
-      const st = (row.station || "").toString().toLowerCase();
-      if (!st.includes(stationFilter)) return false;
+      if (!(row.station || "").toString().toLowerCase().includes(stationFilter)) return false;
     }
-
-    if (msgTypes.length && !msgTypes.includes(row.messageType || "")) return false;
-    if (fingers.length && !fingers.includes(row.finger || "")) return false;
+    if (msgTypes.length  && !msgTypes.includes(row.messageType || ""))    return false;
+    if (fingers.length   && !fingers.includes(row.finger || ""))          return false;
     if (intendeds.length && !intendeds.includes(row.intendedHamper || "")) return false;
-    if (actuals.length && !actuals.includes(row.dest || "")) return false;
+    if (actuals.length   && !actuals.includes(row.dest || ""))            return false;
+    if (pkgTypes.length  && !pkgTypes.includes(row.packageType || "Other")) return false;
+    if (zones.length     && !zones.includes(row.zone || ""))              return false;
 
     if (errors.length) {
       const rowCode = row.effective_error_code || "";
-      const isOK = !rowCode;
-      let match = false;
-      if (isOK && errors.includes("OK")) match = true;
-      if (rowCode && errors.includes(rowCode)) match = true;
+      const match = (!rowCode && errors.includes("OK")) || (rowCode && errors.includes(rowCode));
       if (!match) return false;
     }
 
     if (fromDate || toDate) {
       const ts = row.timestamp || row.time || "";
       if (!ts) return false;
-      const dstr = ts.slice(0,10);
+      const dstr = ts.slice(0, 10);
       if (fromDate && dstr < fromDate) return false;
-      if (toDate && dstr > toDate) return false;
+      if (toDate   && dstr > toDate)   return false;
     }
 
     return true;
@@ -896,8 +1047,7 @@ function getFilteredData() {
 }
 
 function getFilteredTransactions() {
-  const filteredData = getFilteredData();
-  const filteredPkgIds = new Set(filteredData.map(d => d.packageId).filter(Boolean));
+  const filteredPkgIds = new Set(getFilteredData().map(d => d.packageId).filter(Boolean));
   const result = {};
   Object.entries(transactions).forEach(([pkgId, messages]) => {
     if (filteredPkgIds.has(pkgId)) result[pkgId] = messages;
@@ -905,32 +1055,32 @@ function getFilteredTransactions() {
   return result;
 }
 
+// ── Refresh ───────────────────────────────────────────────────────────────────
 function refreshViews() {
-  const data = getFilteredData();
+  const data       = getFilteredData();
   const filteredTx = getFilteredTransactions();
 
-  document.getElementById("rowCount").textContent = data.length;
+  document.getElementById("rowCount").textContent         = data.length;
   document.getElementById("transactionCount").textContent = Object.keys(filteredTx).length;
 
+  renderStatsOverview(data);
   renderTopIssues(data);
   renderSummaryActual(data);
   renderSummaryIntended(data);
+  renderZoneDistribution(data);
   renderMissingS04(filteredTx);
   renderTransactions(filteredTx);
 
   let sorted = data.slice();
   if (currentSort.key) {
-    sorted.sort((a,b) => {
-      const dir = currentSort.dir === "asc" ? 1 : -1;
-      return compareForSort(a,b,currentSort.key) * dir;
-    });
+    sorted.sort((a, b) => compareForSort(a, b, currentSort.key) * (currentSort.dir === "asc" ? 1 : -1));
   }
   renderParsedRows(sorted);
 }
 
-// ---------- Export Helpers ----------
+// ── Exports ───────────────────────────────────────────────────────────────────
 function downloadText(filename, text) {
-  const blob = new Blob([text], { type:"text/plain;charset=utf-8" });
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = filename;
@@ -943,25 +1093,22 @@ function downloadText(filename, text) {
 function toCSVRow(arr) {
   return arr.map(v => {
     const s = (v ?? "").toString();
-    if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g,'""')}"`;
-    return s;
+    return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   }).join(",");
 }
 
 function exportFullCSV() {
   const data = getFilteredData();
   const cols = [
-    "station","device_name","timestamp","messageType","finger",
-    "intendedHamper","dest",
-    "status_code",
-    "error_code","error_desc","error_cat",
+    "station","device_name","timestamp","messageType","packageType","isNoRead",
+    "finger","intendedHamper","dest","zone",
+    "status_code","error_code","error_desc","error_cat",
     "effective_error_code","effective_error_desc","effective_error_cat",
-    "requestedKey","actualKey",
-    "packageId","requestId","raw"
+    "requestedKey","actualKey","packageId","requestId","raw"
   ];
   const out = [toCSVRow(cols)];
   data.forEach(r => out.push(toCSVRow(cols.map(c => r[c] ?? ""))));
-  downloadText(`s04_decode_full_${new Date().toISOString().slice(0,19).replace(/[:T]/g,"-")}.csv`, out.join("\n"));
+  downloadText(`s04_decode_full_${ts()}.csv`, out.join("\n"));
 }
 
 function exportChuteSummaryCSV() {
@@ -969,7 +1116,7 @@ function exportChuteSummaryCSV() {
   const byHamper = {};
   data.forEach(d => {
     const hamper = d.dest || "??";
-    const code = d.effective_error_code || "OK";
+    const code   = d.effective_error_code || "OK";
     if (!byHamper[hamper]) byHamper[hamper] = {};
     byHamper[hamper][code] = (byHamper[hamper][code] || 0) + 1;
   });
@@ -977,86 +1124,88 @@ function exportChuteSummaryCSV() {
   const rows = [["actual_hamper","code","description","category","count"]];
   Object.entries(byHamper).forEach(([hamper, codes]) => {
     Object.entries(codes).forEach(([code, cnt]) => {
-      const info = (code === "OK") ? { desc:"OK", cat:"OK" } : getErrorInfo(code);
+      const info = code === "OK" ? { desc: "OK", cat: "OK" } : getErrorInfo(code);
       rows.push([hamper, code, info.desc, info.cat, cnt]);
     });
   });
-
-  downloadText(`s04_decode_chute_summary_${new Date().toISOString().slice(0,19).replace(/[:T]/g,"-")}.csv`, rows.map(toCSVRow).join("\n"));
+  downloadText(`s04_decode_chute_summary_${ts()}.csv`, rows.map(toCSVRow).join("\n"));
 }
 
 function exportTransactionsCSV() {
   const filteredTx = getFilteredTransactions();
   const rows = [[
-    "packageId","station","device_name","timestamp","messageType","finger",
-    "requestedChute","actualChute",
-    "statusCode",
+    "packageId","packageType","station","device_name","timestamp","messageType","finger",
+    "requestedChute","actualChute","zone","statusCode",
     "error_code","error_desc","error_cat",
     "effective_error_code","effective_error_desc","effective_error_cat",
-    "requestedKey","actualKey",
-    "raw"
+    "requestedKey","actualKey","raw"
   ]];
 
   Object.entries(filteredTx).forEach(([pkgId, msgs]) => {
     msgs.forEach(m => {
       rows.push([
         pkgId,
-        m.station || "",
-        m.device_name || "",
+        getPackageType(pkgId),
+        m.station || "", m.device_name || "",
         m.timestamp || m.time || "",
         m.messageType || "",
         m.finger || m.fingerStr || "",
         m.requestedChute || m.destinationRequest || "",
         m.actualChute || "",
+        m.zone || "",
         m.statusCode || "",
-        m.error_code || "",
-        m.error_desc || "",
-        m.error_cat || "",
-        m.effective_error_code || "",
-        m.effective_error_desc || "",
-        m.effective_error_cat || "",
-        m.requestedKey || "",
-        m.actualKey || "",
+        m.error_code || "", m.error_desc || "", m.error_cat || "",
+        m.effective_error_code || "", m.effective_error_desc || "", m.effective_error_cat || "",
+        m.requestedKey || "", m.actualKey || "",
         m.raw || ""
       ]);
     });
   });
-
-  downloadText(`s04_decode_transactions_${new Date().toISOString().slice(0,19).replace(/[:T]/g,"-")}.csv`, rows.map(toCSVRow).join("\n"));
+  downloadText(`s04_decode_transactions_${ts()}.csv`, rows.map(toCSVRow).join("\n"));
 }
 
-// ---------- UI Wiring ----------
-function setButtonsEnabled(decoded) {
-  document.getElementById("btnExport").disabled = !decoded;
-  document.getElementById("btnExportSummary").disabled = !decoded;
-  document.getElementById("btnExportTransactions").disabled = !decoded;
-  document.getElementById("btnClear").disabled = !decoded;
+function ts() {
+  return new Date().toISOString().slice(0,19).replace(/[:T]/g,"-");
+}
+
+// ── UI Wiring ────────────────────────────────────────────────────────────────
+function setButtonsEnabled(on) {
+  ["btnExport","btnExportSummary","btnExportTransactions","btnClear"].forEach(id => {
+    document.getElementById(id).disabled = !on;
+  });
 }
 
 function resetUI() {
-  processed = [];
+  processed    = [];
   transactions = {};
-  currentSort = { key:null, dir:"asc" };
+  currentSort  = { key: null, dir: "asc" };
 
-  document.getElementById("status").textContent = "";
-  document.getElementById("rowCount").textContent = "0";
-  document.getElementById("transactionCount").textContent = "0";
-  document.getElementById("topIssues").innerHTML = "";
-  document.getElementById("summary").innerHTML = "";
-  document.getElementById("summaryIntended").innerHTML = "";
-  document.getElementById("missingS04").innerHTML = "";
-  document.getElementById("transactions").innerHTML = "";
-  document.getElementById("rows").innerHTML = "";
+  ["status","rowCount","transactionCount"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = id === "status" ? "" : "0";
+  });
 
-  document.getElementById("messageTypeOptions").innerHTML = "";
-  document.getElementById("fingerOptions").innerHTML = "";
-  document.getElementById("intendedOptions").innerHTML = "";
-  document.getElementById("actualOptions").innerHTML = "";
-  document.getElementById("errorOptions").innerHTML = "";
+  ["topIssues","summary","summaryIntended","missingS04","transactions","rows","zoneDistribution"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = "";
+  });
 
-  document.getElementById("fStation").value = "";
-  document.getElementById("fFromDate").value = "";
-  document.getElementById("fToDate").value = "";
+  const statsEl = document.getElementById("statsOverview");
+  if (statsEl) statsEl.innerHTML = "<p>Load a file to see stats.</p>";
+
+  const legendEl = document.getElementById("zoneLegend");
+  if (legendEl) legendEl.innerHTML = "";
+
+  ["messageTypeOptions","fingerOptions","intendedOptions","actualOptions",
+   "errorOptions","pkgTypeOptions","zoneOptions"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = "";
+  });
+
+  ["fStation","fFromDate","fToDate"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = "";
+  });
 
   document.getElementById("debug").style.display = "none";
   document.getElementById("debug").innerHTML = "";
@@ -1064,8 +1213,7 @@ function resetUI() {
 }
 
 function readFilesAsText(fileList) {
-  const files = Array.from(fileList || []);
-  return Promise.all(files.map(f => f.text().then(t => ({ name:f.name, text:t }))));
+  return Promise.all(Array.from(fileList || []).map(f => f.text().then(t => ({ name: f.name, text: t }))));
 }
 
 function mergeCSVs(fileTexts) {
@@ -1079,24 +1227,24 @@ function mergeCSVs(fileTexts) {
     if (!headerRow) {
       headerRow = rows[0];
       merged.push(rows[0]);
-      for (let i=1; i<rows.length; i++) merged.push(rows[i]);
+      for (let i = 1; i < rows.length; i++) merged.push(rows[i]);
     } else {
       const maybeHeader = rows[0].map(x => (x || "").trim().toLowerCase());
-      const baseHeader = headerRow.map(x => (x || "").trim().toLowerCase());
-      const isHeader = maybeHeader.length === baseHeader.length && maybeHeader.every((v,i)=>v===baseHeader[i]);
+      const baseHeader  = headerRow.map(x => (x || "").trim().toLowerCase());
+      const isHeader = maybeHeader.length === baseHeader.length && maybeHeader.every((v, i) => v === baseHeader[i]);
       const start = isHeader ? 1 : 0;
-      for (let i=start; i<rows.length; i++) merged.push(rows[i]);
+      for (let i = start; i < rows.length; i++) merged.push(rows[i]);
     }
   }
   return merged;
 }
 
-// Wire controls
-const fileInput = document.getElementById("file");
-const btnRun = document.getElementById("btnRun");
-const btnClear = document.getElementById("btnClear");
-const btnExport = document.getElementById("btnExport");
-const btnExportSummary = document.getElementById("btnExportSummary");
+// Wire up controls
+const fileInput          = document.getElementById("file");
+const btnRun             = document.getElementById("btnRun");
+const btnClear           = document.getElementById("btnClear");
+const btnExport          = document.getElementById("btnExport");
+const btnExportSummary   = document.getElementById("btnExportSummary");
 const btnExportTransactions = document.getElementById("btnExportTransactions");
 
 fileInput.addEventListener("change", () => {
@@ -1111,9 +1259,8 @@ btnRun.addEventListener("click", async () => {
     document.getElementById("loading").style.display = "flex";
     document.getElementById("status").textContent = "Reading file(s)...";
 
-    const fileTexts = await readFilesAsText(fileInput.files);
+    const fileTexts  = await readFilesAsText(fileInput.files);
     const mergedRows = mergeCSVs(fileTexts);
-
     if (!mergedRows.length) throw new Error("No parseable CSV rows found");
     handleRows(mergedRows);
 
@@ -1138,7 +1285,6 @@ btnExport.addEventListener("click", exportFullCSV);
 btnExportSummary.addEventListener("click", exportChuteSummaryCSV);
 btnExportTransactions.addEventListener("click", exportTransactionsCSV);
 
-// initial
 resetUI();
 </script>
 </body>
