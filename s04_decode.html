@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>S04 Decode v1.9 – Sorting System Log Decoder with Transaction Grouping</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<style>
+:root {
+--bg:#0f172a; --card:#1e293b; --text:#e2e8f0;
+--accent:#38bdf8; --red:#f87171; --orange:#fb923c;
+--green:#34d399; --purple:#c084fc; --yellow:#fbbf24;
+}
+body{margin:0;font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;}
+header{background:#0b1120;padding:1.5rem;text-align:center;border-bottom:1px solid 334155_1;}
+h1{margin:0;color:var(--accent);}
+.container{max-width:1600px;margin:2rem auto;padding:0 1rem;}
+.card{background:var(--card);border-radius:12px;padding:1.5rem;margin-bottom:1.5rem;box-shadow:0 4px 20px rgba(0,0,0,0.3);}
+.controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:0.75rem;margin-bottom:1rem;}
+input,button{padding:0.6rem 1rem;border-radius:8px;border:none;background:#334155;color:white;font-size:0.9rem;}
+button{background:var(--accent);cursor:pointer;font-weight:bold;}
+button:hover:not(:disabled){background:#0ea5e9;}
+button:disabled{background:#475569;cursor:not-allowed;}
+table{width:100%;border-collapse:collapse;margin-top:1rem;font-size:0.9rem;}
+th,td{padding:0.5rem 0.75rem;text-align:left;border-bottom:1px solid 334155_1;}
+th{background:#1e40af;cursor:pointer;user-select:none;}
+th.sort-asc::after{content:" ▲";}
+th.sort-desc::after{content:" ▼";}
+tr:hover{background:#334155;}
+.pill{display:inline-block;padding:0.2rem 0.6rem;border-radius:1rem;font-size:0.75rem;margin:0.1rem;font-weight:bold;}
+.pill.ok{background:var(--green);color:black;}
+.pill.technical{background:var(--red);color:white;}
+.pill.process{background:var(--orange);color:white;}
+.pill.jackpot{background:var(--purple);color:white;}
+.pill.s01{background:#3b82f6;color:white;}
+.pill.s02{background:#8b5cf6;color:white;}
+.pill.s03{background:#ec4899;color:white;}
+.pill.s04{background:var(--yellow);color:black;}
+.jackpot{background:#581c87 !important;color:white;}
+#loading{position:fixed;inset:0;background:rgba(0,0,0,0.95);color:white;font-size:2rem;display:flex;align-items:center;justify-content:center;z-index:999;display:none;}
+#debug{background:#000;color:#0f0;padding:1rem;font-family:monospace;max-height:300px;overflow-y:auto;display:none;border:1px solid #0f0;margin:1rem;border-radius:8px;}
+footer{max-width:1600px;margin:0 auto 1rem auto;padding:0 1rem;font-size:0.75rem;opacity:0.65;text-align:right;}
+.filter-hint{font-size:0.8rem;opacity:0.7;margin-top:-0.5rem;}
+.filter-block{background:#0b1120;border-radius:8px;padding:0.5rem 0.75rem;max-height:200px;overflow-y:auto;}
+.filter-title{font-size:0.85rem;font-weight:bold;margin-bottom:0.25rem;opacity:0.8;}
+.filter-block label{display:block;font-size:0.8rem;margin:0.1rem 0;cursor:pointer;}
+.filter-block input[type="checkbox"]{margin-right:0.35rem;}
+
+/* Transaction grouping styles */
+.transaction-group{background:#1a2332;border-left:3px solid var(--accent);margin:0.5rem 0;padding:0.75rem;border-radius:6px;}
+.transaction-header{font-weight:bold;color:var(--accent);margin-bottom:0.5rem;font-size:0.95rem;}
+.message-row{background:#0f1829;padding:0.4rem 0.6rem;margin:0.25rem 0;border-radius:4px;font-size:0.85rem;display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;}
+.message-content{color:#cbd5e1;flex:1;min-width:260px;}
+.group-summary{font-size:0.8rem;opacity:0.7;margin-top:0.3rem;}
+.expand-btn{background:#334155;color:white;border:none;padding:0.3rem 0.6rem;border-radius:4px;cursor:pointer;font-size:0.75rem;}
+.expand-btn:hover{background:#475569;}
+.message-details{display:none;width:100%;margin-top:0.25rem;padding:0.5rem;background:#0a0f1a;border-radius:4px;font-family:monospace;font-size:0.75rem;white-space:pre-wrap;word-break:break-word;}
+.message-details.expanded{display:block;}
+</style>
+</head>
+
+<body>
+<header>
+<h1>S04 Decode v1.9</h1>
+<p>Transaction Grouping • S01-S04 Messages • Official Error Codes + Categories</p>
+</header>
+
+<div class="container">
+<div class="card">
+<div class="controls">
+<input type="file" id="file" accept=".csv,.txt" multiple />
+<button id="btnRun" disabled>Run Decoder</button>
+<button id="btnExport" disabled>Export Full CSV</button>
+<button id="btnExportSummary" disabled>Export Chute Summary</button>
+<button id="btnExportTransactions" disabled>Export Transactions</button>
+<button id="btnClear" disabled>Clear</button>
+</div>
+<div>
+<strong>Status:</strong> <span id="status"></span> |
+<strong>Transactions:</strong> <span id="transactionCount">0</span> |
+<strong>Messages:</strong> <span id="rowCount">0</span>
+</div>
+</div>
+
+<div class="card">
+<h2>Filters</h2>
+<div class="controls">
+<div>
+<label>Station (contains)</label>
+<input type="text" id="fStation" placeholder="Station" />
+</div>
+
+<div>
+<div class="filter-title">Message Type</div>
+<div id="messageTypeOptions" class="filter-block"></div>
+</div>
+
+<div>
+<div class="filter-title">Finger</div>
+<div id="fingerOptions" class="filter-block"></div>
+</div>
+
+<div>
+<div class="filter-title">Intended Hamper</div>
+<div id="intendedOptions" class="filter-block"></div>
+</div>
+
+<div>
+<div class="filter-title">Actual Hamper</div>
+<div id="actualOptions" class="filter-block"></div>
+</div>
+
+<div>
+<div class="filter-title">Error Codes</div>
+<div id="errorOptions" class="filter-block"></div>
+</div>
+
+<div>
+<label>From Date</label>
+<input type="date" id="fFromDate" />
+</div>
+<div>
+<label>To Date</label>
+<input type="date" id="fToDate" />
+</div>
+</div>
+<div class="filter-hint">Tip: leave all boxes unchecked in a section to include everything for that dimension.</div>
+</div>
+
+<div class="card"><h2>Top Issues (with Category)</h2><div id="topIssues"></div></div>
+<div class="card"><h2>Issues by Hamper (Actual)</h2><div id="summary"></div></div>
+<div class="card"><h2>Issues by Intended Hamper</h2><div id="summaryIntended"></div></div>
+
+<div class="card">
+<h2>Missing S04 (by Package ID)</h2>
+<div id="missingS04"></div>
+</div>
+
+<div class="card">
+<h2>Transactions (Grouped by Package ID)</h2>
+<div id="transactions"></div>
+</div>
+
+<div class="card"><h2>All Events</h2><div id="rows"></div></div>
+</div>
+
+<footer>S04 Decode v1.9 – Built by R. Davenport</footer>
+
+<div id="loading">Processing...</div>
+<pre id="debug"></pre>
+
+<script>
+/* S04 Decode v1.9 (patched)
+ * - Jackpot alias normalization: any S??99 treated as JACKPOT for route equivalence
+ * - Suppress false error 07 when requested and actual are equivalent
+ * - UI filters remain unchanged (Finger filter uses physical finger field)
+ */
+
+// OFFICIAL ERROR CODES + CATEGORIES
+const ERROR_DEFS = {
+  "01": { desc: "Unknown", cat: "Technical" },
+  "02": { desc: "Unexpected container", cat: "Technical" },
+  "03": { desc: "Tracking error", cat: "Technical" },
+  "04": { desc: "Gap error", cat: "Technical" },
+  "05": { desc: "Destination full", cat: "Process" },
+  "06": { desc: "Destination non operable", cat: "Technical" },
+  "07": { desc: "Invalid destination", cat: "Process" },
+  "08": { desc: "No read", cat: "Process" },
+  "09": { desc: "No code", cat: "Technical" },
+  "10": { desc: "Multi label", cat: "Process" },
+  "12": { desc: "Destination disabled", cat: "Process" },
+  "13": { desc: "Throughput limit", cat: "Process" },
+  "14": { desc: "Failed to divert", cat: "Technical" },
+  "16": { desc: "No destination received", cat: "Technical" },
+  "17": { desc: "Lost container", cat: "Technical" },
+  "18": { desc: "Dimension error", cat: "Process" },
+  "19": { desc: "Weight error", cat: "Process" },
+  "20": { desc: "Container utilization", cat: "Technical" },
+  "21": { desc: "Unable to divert", cat: "Technical" },
+  "22": { desc: "Destination not attempted", cat: "Process" }
+};
+
+function getErrorInfo(code) {
+  if (!code || code === "OK") return { desc: "OK", cat: "OK" };
+  const def = ERROR_DEFS[code] || { desc: "Unknown", cat: "Unknown" };
+  return { desc: def.desc, cat: def.cat };
+}
+
+function debug(msg, data) {
+  console.log(msg, data);
+  const el = document.getElementById("debug");
+  el.style.display = "block";
+  el.innerHTML += msg + (data ? ": " + JSON.stringify(data) : "") + "\n";
+  el.scrollTop = el.scrollHeight;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = (text ?? "").toString();
+  return div.innerHTML;
+}
+
+function parseChuteCode(chute) {
+  if (!chute || typeof chute !== "string") return null;
+  const c = chute.trim();
+  if (!/^S\d{4}/.test(c)) return null;
+
+  const finger = parseInt(c.slice(1,3),10);
+  let hamperStr, zone = null;
+
+  const hash = c.indexOf("#");
+  if (hash !== -1) {
+    hamperStr = c.slice(3,hash);
+    const z = parseInt(c.slice(hash+1),10);
+    zone = isNaN(z) ? null : z;
+  } else {
+    hamperStr = c.slice(3);
+  }
+
+  const hamper = parseInt(hamperStr,10);
+  const isJackpot = hamper === 99;
+
+  const short = isJackpot ? `Jackpot (Hamper 99)` :
+    (zone !== null ? `Finger ${finger}, Hamper ${hamper}, Zone ${zone}` : `Finger ${finger}, Hamper ${hamper}`);
+
+  return {
+    finger, hamper, zone, isJackpot, short,
+    fingerStr: String(finger).padStart(2,"0"),
+    hamperStr: String(hamper).padStart(2,"0")
+  };
+}
+
+// Logical chute key for route equivalence.
+// Jackpot: any S??99 -> "JACKPOT" (ignores finger)
+function chuteKey(parsed, raw) {
+  if (parsed && parsed.hamperStr) {
+    if (parsed.hamperStr === "99" || parsed.isJackpot) return "JACKPOT";
+    const z = parsed.zone != null ? `-Z${parsed.zone}` : "";
+    return `F${parsed.fingerStr}-H${parsed.hamperStr}${z}`;
+  }
+
+  const s = (raw || "").toString().trim().toUpperCase();
+  const m = s.match(/^S(\d{2})(\d{2})(?:#(\d+))?$/);
+  if (!m) return s || "UNKNOWN";
+
+  const finger = m[1];
+  const hamper = m[2];
+  const zone = m[3] ? `-Z${m[3]}` : "";
+
+  if (hamper === "99") return "JACKPOT";
+  return `F${finger}-H${hamper}${zone}`;
+}
+
+function extractFinger(fingerRaw) {
+  const m = (fingerRaw || "").match(/(\d+)/);
+  return m ? m[1].padStart(2,"0") : "";
+}
+
+// Parse S01, S02, S03, S04 messages
+function parseMessage(line) {
+  if (!line) return null;
+  let clean = line.trim();
+
+  if (clean.startsWith('"') && clean.endsWith('"')) clean = clean.slice(1, -1);
+
+  clean = clean
+    .replace(/\\u0002|\\u0003/gi, "")
+    .replace(/[\u0002\u0003]/g, "")
+    .trim();
+
+  for (let msgType of ["S01","S02","S03","S04"]) {
+    const idx = clean.indexOf(msgType + ",");
+    if (idx === -1) continue;
+
+    const msgClean = clean.slice(idx);
+    const p = msgClean.split(",");
+    if (p[0] !== msgType) continue;
+
+    if (msgType === "S01") {
+      if (p.length < 5) continue;
+      return { type:"S01", requestId:p[1], fingerRaw:p[2], fingerStr:extractFinger(p[2]), packageId:p[3], time:p[4], raw:msgClean };
+    }
+
+    if (msgType === "S02") {
+      if (p.length < 6) continue;
+      const requested = parseChuteCode(p[4]);
+      return { type:"S02", requestId:p[1], fingerRaw:p[2], fingerStr:extractFinger(p[2]), packageId:p[3], destinationRequest:p[4], requestedChute:requested, time:p[5], raw:msgClean };
+    }
+
+    if (msgType === "S03") {
+      if (p.length < 6) continue;
+      const requested = parseChuteCode(p[4]);
+      return { type:"S03", requestId:p[1], fingerRaw:p[2], fingerStr:extractFinger(p[2]), packageId:p[3], destinationRequest:p[4], requestedChute:requested, time:p[5], raw:msgClean };
+    }
+
+    if (msgType === "S04") {
+      if (p.length < 8) continue;
+
+      const requested = parseChuteCode(p[4]);
+      const actual = parseChuteCode(p[5]);
+
+      const codeRaw = (p[6] || "").trim();
+      let status_code = codeRaw;
+      let error_code = "";
+
+      if (codeRaw) {
+        const n = parseInt(codeRaw, 10);
+        if (!isNaN(n) && n !== 0) error_code = String(n).padStart(2, "0");
+      }
+
+      const info = getErrorInfo(error_code);
+
+      // Equivalence keys (used to suppress false invalid destination)
+      const requestedKey = chuteKey(requested, p[4]);
+      const actualKey = chuteKey(actual, p[5]);
+
+      // Effective error fields for analytics/UI (do NOT change raw status_code/error_code)
+      let effective_error_code = error_code;
+      let effective_error_desc = info.desc;
+      let effective_error_cat = info.cat;
+
+      // Suppress false "Invalid destination" when requested/actual are equivalent (e.g., any S??99 jackpot alias)
+      if (effective_error_code === "07" && requestedKey === actualKey) {
+        effective_error_code = "";
+        effective_error_desc = "OK (destination alias / equivalent route)";
+        effective_error_cat = "OK";
+      }
+
+      return {
+        type:"S04",
+        requestId:p[1],
+        fingerRaw:p[2],
+        fingerStr:extractFinger(p[2]),
+        packageId:p[3],
+        requestedChute:p[4],
+        actualChute:p[5],
+        statusCode:p[6],
+
+        status_code,
+        error_code,
+        error_desc: info.desc,
+        error_cat: info.cat,
+
+        requestedKey,
+        actualKey,
+        effective_error_code,
+        effective_error_desc,
+        effective_error_cat,
+
+        actual,
+        requested,
+        isJackpot: (actualKey === "JACKPOT"),
+        time:p[7],
+        raw:msgClean
+      };
+    }
+  }
+
+  // Legacy patterns (kept, but no longer relied on for jackpot equivalence)
+  if (clean.includes("S9999,S0199")) {
+    return { type:"LEGACY_JACKPOT", finger:"99", dest:"99", intendedHamper:"99", isJackpot:true, raw:clean };
+  }
+
+  const m = clean.match(/S(\d{2})(\d{2})(?:,[^,]*)?(?:,(\d+))?/);
+  if (m) {
+    const [, finger, dest, err] = m;
+    const error_code = err ? err.padStart(2,"0") : "";
+    const info = getErrorInfo(error_code);
+
+    // Provide equivalence keys for legacy too
+    const fakeParsed = { fingerStr: finger, hamperStr: dest, zone: null, isJackpot: dest === "99" };
+    const destKey = chuteKey(fakeParsed, `S${finger}${dest}`);
+
+    return {
+      type:"LEGACY",
+      finger,
+      dest,
+      intendedHamper: dest,
+      status_code: error_code,
+      error_code,
+      error_desc: info.desc,
+      error_cat: info.cat,
+
+      effective_error_code: error_code,
+      effective_error_desc: info.desc,
+      effective_error_cat: info.cat,
+
+      requestedKey: destKey,
+      actualKey: destKey,
+
+      raw: clean,
+      isJackpot: destKey === "JACKPOT"
+    };
+  }
+
+  return null;
+}
+
+function parseCSV(text) {
+  const rows = [];
+  let i=0, cur="", inQ=false, row=[];
+  while (i < text.length) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"' && text[i+1] === '"') { cur += '"'; i++; }
+      else if (c === '"') inQ = false;
+      else cur += c;
+    } else {
+      if (c === '"') inQ = true;
+      else if (c === ",") { row.push(cur.trim()); cur=""; }
+      else if (c === "\n" || c === "\r") {
+        if (cur.length || row.length) { row.push(cur.trim()); rows.push(row); row=[]; cur=""; }
+        if (c === "\r" && text[i+1] === "\n") i++;
+      } else cur += c;
+    }
+    i++;
+  }
+  if (cur || row.length) { row.push(cur.trim()); rows.push(row); }
+  return rows;
+}
+
+let processed = [];
+let transactions = {};
+
+const SORT_KEYS = [
+  "station","device_name","timestamp","messageType","finger",
+  "intendedHamper","dest","status_code","error_desc","error_cat","raw"
+];
+let currentSort = { key:null, dir:"asc" };
+
+function buildCheckboxes(containerId, values, formatter) {
+  const container = document.getElementById(containerId);
+  container.innerHTML = "";
+  Array.from(values).sort().forEach(v => {
+    if (!v) return;
+    const label = document.createElement("label");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.value = v;
+    cb.addEventListener("change", refreshViews);
+    label.appendChild(cb);
+    label.appendChild(document.createTextNode(" " + (formatter ? formatter(v) : v)));
+    container.appendChild(label);
+  });
+}
+
+function getCheckedValues(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return [];
+  return Array.from(container.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+}
+
+function handleRows(rows) {
+  document.getElementById("debug").innerHTML = "";
+  document.getElementById("loading").style.display = "flex";
+  document.getElementById("status").textContent = "Processing...";
+
+  try {
+    if (!rows.length) throw new Error("Empty file(s)");
+    const header = rows[0].map(h => (h || "").trim().toLowerCase());
+    const idx = {
+      payload: header.indexOf("payload"),
+      station: header.indexOf("station"),
+      device_name: header.indexOf("device_name"),
+      timestamp: header.indexOf("timestamp")
+    };
+    if (idx.payload === -1) throw new Error("No 'payload' column");
+
+    processed = [];
+    transactions = {};
+
+    const errorSet = new Set(["OK"]);
+    const fingerSet = new Set();
+    const intendedSet = new Set();
+    const actualSet = new Set();
+    const msgTypeSet = new Set();
+
+    let valid = 0;
+
+    for (let i=1; i<rows.length; i++) {
+      const r = rows[i];
+      if (!r || !r.length) continue;
+
+      const msg = parseMessage(r[idx.payload] || "");
+      if (!msg) {
+        processed.push({
+          station: idx.station > -1 ? r[idx.station] : "",
+          device_name: idx.device_name > -1 ? r[idx.device_name] : "",
+          timestamp: idx.timestamp > -1 ? r[idx.timestamp] : "",
+          ok: false,
+          raw: r[idx.payload] || ""
+        });
+        continue;
+      }
+
+      valid++;
+
+      let ts = (idx.timestamp > -1 && r[idx.timestamp]) ? r[idx.timestamp] : "";
+      if (!ts && msg.time) ts = msg.time;
+      const parsedTs = ts ? new Date(ts) : null;
+
+      const rowObj = {
+        station: idx.station > -1 ? r[idx.station] : "",
+        device_name: idx.device_name > -1 ? r[idx.device_name] : "",
+        timestamp: ts,
+        parsedTimestamp: parsedTs && !isNaN(parsedTs) ? parsedTs.toISOString() : "",
+        messageType: msg.type,
+        ok: true,
+        ...msg
+      };
+
+      if (msg.type === "S04") {
+        rowObj.finger = msg.actual?.fingerStr || msg.fingerStr || "";
+        rowObj.dest = msg.actual?.hamperStr || "";
+        rowObj.intendedHamper = msg.requested?.hamperStr || "";
+
+        if (msg.effective_error_code) errorSet.add(msg.effective_error_code);
+      } else if (msg.type === "S01" || msg.type === "S02" || msg.type === "S03") {
+        rowObj.finger = msg.fingerStr || "";
+        if (msg.type === "S02" || msg.type === "S03") rowObj.intendedHamper = msg.requestedChute?.hamperStr || "";
+      } else if (msg.type === "LEGACY" || msg.type === "LEGACY_JACKPOT") {
+        rowObj.finger = msg.finger || "";
+        rowObj.dest = msg.dest || "";
+        rowObj.intendedHamper = msg.intendedHamper || "";
+        if (msg.effective_error_code) errorSet.add(msg.effective_error_code);
+      }
+
+      processed.push(rowObj);
+
+      if (rowObj.finger) fingerSet.add(rowObj.finger);
+      if (rowObj.intendedHamper) intendedSet.add(rowObj.intendedHamper);
+      if (rowObj.dest) actualSet.add(rowObj.dest);
+      if (rowObj.messageType) msgTypeSet.add(rowObj.messageType);
+
+      if (msg.packageId) {
+        if (!transactions[msg.packageId]) transactions[msg.packageId] = [];
+        transactions[msg.packageId].push(rowObj);
+      }
+    }
+
+    Object.keys(transactions).forEach(pkgId => {
+      transactions[pkgId].sort((a,b) => {
+        const order = { S01:1, S02:2, S03:3, S04:4, LEGACY:50, LEGACY_JACKPOT:51 };
+        const oa = order[a.messageType] || 99;
+        const ob = order[b.messageType] || 99;
+        if (oa !== ob) return oa - ob;
+        const ta = a.parsedTimestamp || a.timestamp || "";
+        const tb = b.parsedTimestamp || b.timestamp || "";
+        return ta.localeCompare(tb);
+      });
+    });
+
+    buildCheckboxes("messageTypeOptions", msgTypeSet, v => v);
+    buildCheckboxes("fingerOptions", fingerSet, v => `Finger ${v}`);
+    buildCheckboxes("intendedOptions", intendedSet, v => `Hamper ${v}`);
+    buildCheckboxes("actualOptions", actualSet, v => `Hamper ${v}`);
+    buildCheckboxes("errorOptions", errorSet, v => {
+      if (v === "OK") return "OK (No Error)";
+      const info = getErrorInfo(v);
+      return `${v}: ${info.desc} (${info.cat})`;
+    });
+
+    setButtonsEnabled(true);
+    refreshViews();
+    document.getElementById("status").textContent =
+      `Ready – ${valid} messages decoded, ${Object.keys(transactions).length} transactions`;
+  } catch (e) {
+    debug("Error: " + e.message);
+    document.getElementById("status").textContent = "Error: " + e.message;
+  } finally {
+    document.getElementById("loading").style.display = "none";
+  }
+}
+
+function renderTopIssues(data) {
+  const counts = {};
+  data.forEach(d => {
+    if (d.messageType !== "S04" && d.type !== "LEGACY" && d.type !== "LEGACY_JACKPOT") return;
+    const key = d.effective_error_code || "OK";
+    counts[key] = (counts[key] || 0) + 1;
+  });
+
+  const total = Object.values(counts).reduce((a,b)=>a+b, 0);
+
+  const rows = Object.entries(counts)
+    .sort((a,b)=>b[1]-a[1])
+    .map(([code,cnt]) => {
+      let desc = "OK";
+      let cat = "OK";
+      if (code !== "OK") {
+        const info = getErrorInfo(code);
+        desc = info.desc;
+        cat = info.cat;
+      }
+      const catClass = cat==="Technical" ? "technical" : cat==="Process" ? "process" : "ok";
+      return [
+        code,
+        desc,
+        `<span class="pill ${catClass}">${escapeHtml(cat)}</span>`,
+        cnt,
+        total > 0 ? (cnt/total*100).toFixed(1)+"%" : "0%"
+      ];
+    });
+
+  document.getElementById("topIssues").innerHTML = rows.length ? `<table>
+<thead><tr><th>Code</th><th>Description</th><th>Category</th><th>Count</th><th>%</th></tr></thead>
+<tbody>${rows.map(r=>`<tr><td>${escapeHtml(r[0])}</td><td>${escapeHtml(r[1])}</td><td>${r[2]}</td><td>${r[3]}</td><td>${r[4]}</td></tr>`).join("")}</tbody>
+</table>` : "No data";
+}
+
+function summaryTableHTML(byKey) {
+  const rows = Object.entries(byKey)
+    .map(([key,codes]) => {
+      const total = Object.values(codes).reduce((a,b)=>a+b,0);
+      const errorList = Object.entries(codes)
+        .sort((a,b)=>b[1]-a[1])
+        .map(([code,cnt]) => {
+          let desc = "OK";
+          let cat = "OK";
+          if (code !== "OK") {
+            const info = getErrorInfo(code);
+            desc = info.desc;
+            cat = info.cat;
+          }
+          const cls = code==="OK" ? "ok" : cat==="Technical" ? "technical" : "process";
+          return `<span class="pill ${cls}">${escapeHtml(code)}: ${escapeHtml(desc)} (${cnt})</span>`;
+        }).join("<br>");
+      return [key, total, errorList];
+    })
+    .sort((a,b)=>b[1]-a[1]);
+
+  if (!rows.length) return "No data";
+
+  return `<table>
+<thead><tr><th>Hamper</th><th>Total</th><th>Breakdown</th></tr></thead>
+<tbody>${rows.map(r=>`<tr><td>${escapeHtml(r[0])}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join("")}</tbody>
+</table>`;
+}
+
+function renderSummaryActual(data) {
+  const byHamper = {};
+  data.forEach(d => {
+    if (d.messageType !== "S04" && d.type !== "LEGACY" && d.type !== "LEGACY_JACKPOT") return;
+    const hamper = d.dest || "??";
+    if (!byHamper[hamper]) byHamper[hamper] = {};
+    const key = d.effective_error_code || "OK";
+    byHamper[hamper][key] = (byHamper[hamper][key] || 0) + 1;
+  });
+  document.getElementById("summary").innerHTML = summaryTableHTML(byHamper);
+}
+
+function renderSummaryIntended(data) {
+  const byHamper = {};
+  data.forEach(d => {
+    if (d.messageType !== "S04" && d.type !== "LEGACY" && d.type !== "LEGACY_JACKPOT") return;
+    const hamper = d.intendedHamper || "??";
+    if (!byHamper[hamper]) byHamper[hamper] = {};
+    const key = d.effective_error_code || "OK";
+    byHamper[hamper][key] = (byHamper[hamper][key] || 0) + 1;
+  });
+  document.getElementById("summaryIntended").innerHTML = summaryTableHTML(byHamper);
+}
+
+window.toggleDetails = function(id) {
+  const el = document.getElementById(id);
+  if (el) el.classList.toggle("expanded");
+};
+
+function renderTransactions(filteredTransactions) {
+  const container = document.getElementById("transactions");
+  const entries = Object.entries(filteredTransactions);
+
+  if (entries.length === 0) {
+    container.innerHTML = "<p>No transactions found</p>";
+    return;
+  }
+
+  let html = "";
+  entries
+    .sort((a,b) => {
+      const aTime = a[1][0]?.parsedTimestamp || a[1][0]?.timestamp || "";
+      const bTime = b[1][0]?.parsedTimestamp || b[1][0]?.timestamp || "";
+      return bTime.localeCompare(aTime);
+    })
+    .forEach(([pkgId, messages]) => {
+      const s04Msg = messages.find(m => m.messageType === "S04");
+      const hasError = !!(s04Msg && (s04Msg.effective_error_code || s04Msg.error_code));
+      const isJackpot = s04Msg?.actualKey === "JACKPOT" || s04Msg?.isJackpot || false;
+
+      html += `<div class="transaction-group">`;
+      html += `<div class="transaction-header">
+        Package: ${escapeHtml(pkgId)}
+        ${isJackpot ? '<span class="pill jackpot">JACKPOT</span>' : ""}
+        ${
+          hasError
+            ? `<span class="pill technical">ERROR: ${escapeHtml(s04Msg.effective_error_code || s04Msg.error_code || "")}</span>`
+            : '<span class="pill ok">OK</span>'
+        }
+      </div>`;
+
+      messages.forEach((msg, idx) => {
+        const msgClass = (msg.messageType || "").toLowerCase();
+        const detailId = `d_${pkgId}_${msg.messageType}_${idx}`.replace(/[^a-zA-Z0-9_]/g, "_");
+
+        html += `<div class="message-row">`;
+        html += msg.messageType ? `<span class="pill ${msgClass}">${escapeHtml(msg.messageType)}</span>` : "";
+
+        if (msg.messageType === "S01") {
+          html += `<span class="message-content">Entry: Finger ${escapeHtml(msg.fingerStr || "")} | Time: ${escapeHtml(msg.time || msg.timestamp || "")}</span>`;
+        } else if (msg.messageType === "S02") {
+          html += `<span class="message-content">Request: ${escapeHtml(msg.destinationRequest || "")} | Finger ${escapeHtml(msg.fingerStr || "")}</span>`;
+        } else if (msg.messageType === "S03") {
+          html += `<span class="message-content">Confirm: ${escapeHtml(msg.destinationRequest || "")} | Finger ${escapeHtml(msg.fingerStr || "")}</span>`;
+        } else if (msg.messageType === "S04") {
+          let line = `Complete: ${msg.requestedChute || ""} → ${msg.actualChute || ""} | Status: ${msg.statusCode || "OK"}`;
+
+          if (msg.error_code && !msg.effective_error_code && msg.error_code === "07" && msg.requestedKey === msg.actualKey) {
+            line += ` | Note: Jackpot alias (equivalent)`;
+          } else if (msg.effective_error_code) {
+            line += ` | Error: ${msg.effective_error_desc || ""}`;
+          } else if (msg.error_code) {
+            line += ` | Error: ${msg.error_desc || ""}`;
+          }
+
+          html += `<span class="message-content">${escapeHtml(line)}</span>`;
+        } else {
+          html += `<span class="message-content">${escapeHtml(msg.raw || "")}</span>`;
+        }
+
+        html += `<button class="expand-btn" onclick="toggleDetails('${detailId}')">Details</button>`;
+        html += `<div id="${detailId}" class="message-details">${escapeHtml(msg.raw || "")}</div>`;
+        html += `</div>`;
+      });
+
+      html += `<div class="group-summary">${messages.length} message(s) | Station: ${escapeHtml(messages[0].station || "Unknown")}</div>`;
+      html += `</div>`;
+    });
+
+  container.innerHTML = html;
+}
+
+function renderMissingS04(filteredTransactions) {
+  const el = document.getElementById("missingS04");
+  if (!el) return;
+
+  const rows = [];
+  for (const [pkgId, msgs] of Object.entries(filteredTransactions)) {
+    const has = { S01:false, S02:false, S03:false, S04:false };
+    let lastTs = "";
+    for (const m of msgs) {
+      if (has[m.messageType] !== undefined) has[m.messageType] = true;
+      const t = m.parsedTimestamp || m.timestamp || m.time || "";
+      if (t && t > lastTs) lastTs = t;
+    }
+    const hasUpstream = has.S01 || has.S02 || has.S03;
+    if (hasUpstream && !has.S04) {
+      rows.push({
+        pkgId, lastTs,
+        presence: `S01:${has.S01?"✓":"—"} S02:${has.S02?"✓":"—"} S03:${has.S03?"✓":"—"} S04:${has.S04?"✓":"—"}`
+      });
+    }
+  }
+
+  rows.sort((a,b) => (b.lastTs || "").localeCompare(a.lastTs || ""));
+
+  if (!rows.length) {
+    el.innerHTML = "<p>No missing S04 found (within current filters).</p>";
+    return;
+  }
+
+  el.innerHTML = `<table>
+<thead><tr><th>Package ID</th><th>Last Time</th><th>Presence</th></tr></thead>
+<tbody>
+${rows.map(r=>`<tr><td>${escapeHtml(r.pkgId)}</td><td>${escapeHtml(r.lastTs)}</td><td>${escapeHtml(r.presence)}</td></tr>`).join("")}
+</tbody>
+</table>`;
+}
+
+function renderParsedRows(data) {
+  const headers = ["Station","Device","Time","Type","Finger","Intended","Actual","Code","Description","Category","Payload"];
+  const rows = [];
+
+  data.forEach(d => {
+    const effCode = d.effective_error_code || "";
+    const effDesc = d.effective_error_desc || "";
+    const effCat = d.effective_error_cat || "";
+
+    const catClass = effCat==="Technical" ? "technical" : effCat==="Process" ? "process" : "ok";
+
+    const cells = [
+      d.station || "",
+      d.device_name || "",
+      d.timestamp ? String(d.timestamp).slice(11,19) : "",
+      d.messageType ? `<span class="pill ${(d.messageType||"").toLowerCase()}">${escapeHtml(d.messageType)}</span>` : "",
+      d.finger || "",
+      d.intendedHamper || "",
+      d.dest || "",
+      effCode || "OK",
+      effDesc || "OK",
+      effCat ? `<span class="pill ${catClass}">${escapeHtml(effCat)}</span>` : `<span class="pill ok">OK</span>`,
+      d.raw ? escapeHtml(d.raw.slice(0,60) + (d.raw.length>60 ? "..." : "")) : ""
+    ];
+
+    const isJackpot = d.dest === "99" || d.isJackpot;
+    rows.push({ cells, isJackpot });
+  });
+
+  const html = rows.length ? `<table>
+<thead><tr>${headers.map(h=>`<th>${h}</th>`).join("")}</tr></thead>
+<tbody>${rows.map(r=>`<tr${r.isJackpot ? ' class="jackpot"' : ''}>${r.cells.map(c=>`<td>${c}</td>`).join("")}</tr>`).join("")}</tbody>
+</table>` : "No data";
+
+  const container = document.getElementById("rows");
+  container.innerHTML = html;
+
+  const table = container.querySelector("table");
+  if (!table) return;
+
+  const ths = table.querySelectorAll("thead th");
+  ths.forEach((th, idx) => {
+    const key = SORT_KEYS[idx];
+    th.classList.remove("sort-asc","sort-desc");
+    if (currentSort.key === key) th.classList.add(currentSort.dir === "asc" ? "sort-asc" : "sort-desc");
+
+    th.addEventListener("click", () => {
+      if (!key) return;
+      if (currentSort.key === key) currentSort.dir = currentSort.dir === "asc" ? "desc" : "asc";
+      else { currentSort.key = key; currentSort.dir = "asc"; }
+      refreshViews();
+    });
+  });
+}
+
+function compareForSort(a,b,key) {
+  let va, vb;
+
+  if (key === "timestamp") {
+    va = a.parsedTimestamp || a.timestamp || "";
+    vb = b.parsedTimestamp || b.timestamp || "";
+    return va < vb ? -1 : va > vb ? 1 : 0;
+  }
+
+  va = a[key];
+  vb = b[key];
+
+  if (["finger","dest","status_code","intendedHamper"].includes(key)) {
+    const na = parseInt(va,10);
+    const nb = parseInt(vb,10);
+    if (!isNaN(na) && !isNaN(nb)) return na < nb ? -1 : na > nb ? 1 : 0;
+  }
+
+  va = (va ?? "").toString();
+  vb = (vb ?? "").toString();
+  return va < vb ? -1 : va > vb ? 1 : 0;
+}
+
+function getFilteredData() {
+  const stationFilter = document.getElementById("fStation").value.trim().toLowerCase();
+  const msgTypes = getCheckedValues("messageTypeOptions");
+  const fingers = getCheckedValues("fingerOptions");
+  const intendeds = getCheckedValues("intendedOptions");
+  const actuals = getCheckedValues("actualOptions");
+  const errors = getCheckedValues("errorOptions");
+  const fromDate = document.getElementById("fFromDate").value;
+  const toDate = document.getElementById("fToDate").value;
+
+  return processed.filter(row => {
+    if (stationFilter) {
+      const st = (row.station || "").toString().toLowerCase();
+      if (!st.includes(stationFilter)) return false;
+    }
+
+    if (msgTypes.length && !msgTypes.includes(row.messageType || "")) return false;
+    if (fingers.length && !fingers.includes(row.finger || "")) return false;
+    if (intendeds.length && !intendeds.includes(row.intendedHamper || "")) return false;
+    if (actuals.length && !actuals.includes(row.dest || "")) return false;
+
+    if (errors.length) {
+      const rowCode = row.effective_error_code || "";
+      const isOK = !rowCode;
+      let match = false;
+      if (isOK && errors.includes("OK")) match = true;
+      if (rowCode && errors.includes(rowCode)) match = true;
+      if (!match) return false;
+    }
+
+    if (fromDate || toDate) {
+      const ts = row.timestamp || row.time || "";
+      if (!ts) return false;
+      const dstr = ts.slice(0,10);
+      if (fromDate && dstr < fromDate) return false;
+      if (toDate && dstr > toDate) return false;
+    }
+
+    return true;
+  });
+}
+
+function getFilteredTransactions() {
+  const filteredData = getFilteredData();
+  const filteredPkgIds = new Set(filteredData.map(d => d.packageId).filter(Boolean));
+  const result = {};
+  Object.entries(transactions).forEach(([pkgId, messages]) => {
+    if (filteredPkgIds.has(pkgId)) result[pkgId] = messages;
+  });
+  return result;
+}
+
+function refreshViews() {
+  const data = getFilteredData();
+  const filteredTx = getFilteredTransactions();
+
+  document.getElementById("rowCount").textContent = data.length;
+  document.getElementById("transactionCount").textContent = Object.keys(filteredTx).length;
+
+  renderTopIssues(data);
+  renderSummaryActual(data);
+  renderSummaryIntended(data);
+  renderMissingS04(filteredTx);
+  renderTransactions(filteredTx);
+
+  let sorted = data.slice();
+  if (currentSort.key) {
+    sorted.sort((a,b) => {
+      const dir = currentSort.dir === "asc" ? 1 : -1;
+      return compareForSort(a,b,currentSort.key) * dir;
+    });
+  }
+  renderParsedRows(sorted);
+}
+
+// ---------- Export Helpers ----------
+function downloadText(filename, text) {
+  const blob = new Blob([text], { type:"text/plain;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+}
+
+function toCSVRow(arr) {
+  return arr.map(v => {
+    const s = (v ?? "").toString();
+    if (/[",\n\r]/.test(s)) return `"${s.replace(/"/g,'""')}"`;
+    return s;
+  }).join(",");
+}
+
+function exportFullCSV() {
+  const data = getFilteredData();
+  const cols = [
+    "station","device_name","timestamp","messageType","finger",
+    "intendedHamper","dest",
+    "status_code",
+    "error_code","error_desc","error_cat",
+    "effective_error_code","effective_error_desc","effective_error_cat",
+    "requestedKey","actualKey",
+    "packageId","requestId","raw"
+  ];
+  const out = [toCSVRow(cols)];
+  data.forEach(r => out.push(toCSVRow(cols.map(c => r[c] ?? ""))));
+  downloadText(`s04_decode_full_${new Date().toISOString().slice(0,19).replace(/[:T]/g,"-")}.csv`, out.join("\n"));
+}
+
+function exportChuteSummaryCSV() {
+  const data = getFilteredData().filter(d => d.messageType === "S04" || d.type === "LEGACY" || d.type === "LEGACY_JACKPOT");
+  const byHamper = {};
+  data.forEach(d => {
+    const hamper = d.dest || "??";
+    const code = d.effective_error_code || "OK";
+    if (!byHamper[hamper]) byHamper[hamper] = {};
+    byHamper[hamper][code] = (byHamper[hamper][code] || 0) + 1;
+  });
+
+  const rows = [["actual_hamper","code","description","category","count"]];
+  Object.entries(byHamper).forEach(([hamper, codes]) => {
+    Object.entries(codes).forEach(([code, cnt]) => {
+      const info = (code === "OK") ? { desc:"OK", cat:"OK" } : getErrorInfo(code);
+      rows.push([hamper, code, info.desc, info.cat, cnt]);
+    });
+  });
+
+  downloadText(`s04_decode_chute_summary_${new Date().toISOString().slice(0,19).replace(/[:T]/g,"-")}.csv`, rows.map(toCSVRow).join("\n"));
+}
+
+function exportTransactionsCSV() {
+  const filteredTx = getFilteredTransactions();
+  const rows = [[
+    "packageId","station","device_name","timestamp","messageType","finger",
+    "requestedChute","actualChute",
+    "statusCode",
+    "error_code","error_desc","error_cat",
+    "effective_error_code","effective_error_desc","effective_error_cat",
+    "requestedKey","actualKey",
+    "raw"
+  ]];
+
+  Object.entries(filteredTx).forEach(([pkgId, msgs]) => {
+    msgs.forEach(m => {
+      rows.push([
+        pkgId,
+        m.station || "",
+        m.device_name || "",
+        m.timestamp || m.time || "",
+        m.messageType || "",
+        m.finger || m.fingerStr || "",
+        m.requestedChute || m.destinationRequest || "",
+        m.actualChute || "",
+        m.statusCode || "",
+        m.error_code || "",
+        m.error_desc || "",
+        m.error_cat || "",
+        m.effective_error_code || "",
+        m.effective_error_desc || "",
+        m.effective_error_cat || "",
+        m.requestedKey || "",
+        m.actualKey || "",
+        m.raw || ""
+      ]);
+    });
+  });
+
+  downloadText(`s04_decode_transactions_${new Date().toISOString().slice(0,19).replace(/[:T]/g,"-")}.csv`, rows.map(toCSVRow).join("\n"));
+}
+
+// ---------- UI Wiring ----------
+function setButtonsEnabled(decoded) {
+  document.getElementById("btnExport").disabled = !decoded;
+  document.getElementById("btnExportSummary").disabled = !decoded;
+  document.getElementById("btnExportTransactions").disabled = !decoded;
+  document.getElementById("btnClear").disabled = !decoded;
+}
+
+function resetUI() {
+  processed = [];
+  transactions = {};
+  currentSort = { key:null, dir:"asc" };
+
+  document.getElementById("status").textContent = "";
+  document.getElementById("rowCount").textContent = "0";
+  document.getElementById("transactionCount").textContent = "0";
+  document.getElementById("topIssues").innerHTML = "";
+  document.getElementById("summary").innerHTML = "";
+  document.getElementById("summaryIntended").innerHTML = "";
+  document.getElementById("missingS04").innerHTML = "";
+  document.getElementById("transactions").innerHTML = "";
+  document.getElementById("rows").innerHTML = "";
+
+  document.getElementById("messageTypeOptions").innerHTML = "";
+  document.getElementById("fingerOptions").innerHTML = "";
+  document.getElementById("intendedOptions").innerHTML = "";
+  document.getElementById("actualOptions").innerHTML = "";
+  document.getElementById("errorOptions").innerHTML = "";
+
+  document.getElementById("fStation").value = "";
+  document.getElementById("fFromDate").value = "";
+  document.getElementById("fToDate").value = "";
+
+  document.getElementById("debug").style.display = "none";
+  document.getElementById("debug").innerHTML = "";
+  setButtonsEnabled(false);
+}
+
+function readFilesAsText(fileList) {
+  const files = Array.from(fileList || []);
+  return Promise.all(files.map(f => f.text().then(t => ({ name:f.name, text:t }))));
+}
+
+function mergeCSVs(fileTexts) {
+  const merged = [];
+  let headerRow = null;
+
+  for (const ft of fileTexts) {
+    const rows = parseCSV(ft.text || "");
+    if (!rows.length) continue;
+
+    if (!headerRow) {
+      headerRow = rows[0];
+      merged.push(rows[0]);
+      for (let i=1; i<rows.length; i++) merged.push(rows[i]);
+    } else {
+      const maybeHeader = rows[0].map(x => (x || "").trim().toLowerCase());
+      const baseHeader = headerRow.map(x => (x || "").trim().toLowerCase());
+      const isHeader = maybeHeader.length === baseHeader.length && maybeHeader.every((v,i)=>v===baseHeader[i]);
+      const start = isHeader ? 1 : 0;
+      for (let i=start; i<rows.length; i++) merged.push(rows[i]);
+    }
+  }
+  return merged;
+}
+
+// Wire controls
+const fileInput = document.getElementById("file");
+const btnRun = document.getElementById("btnRun");
+const btnClear = document.getElementById("btnClear");
+const btnExport = document.getElementById("btnExport");
+const btnExportSummary = document.getElementById("btnExportSummary");
+const btnExportTransactions = document.getElementById("btnExportTransactions");
+
+fileInput.addEventListener("change", () => {
+  const hasFiles = fileInput.files && fileInput.files.length > 0;
+  btnRun.disabled = !hasFiles;
+  document.getElementById("status").textContent = hasFiles ? `${fileInput.files.length} file(s) selected` : "";
+});
+
+btnRun.addEventListener("click", async () => {
+  try {
+    if (!fileInput.files || fileInput.files.length === 0) return;
+    document.getElementById("loading").style.display = "flex";
+    document.getElementById("status").textContent = "Reading file(s)...";
+
+    const fileTexts = await readFilesAsText(fileInput.files);
+    const mergedRows = mergeCSVs(fileTexts);
+
+    if (!mergedRows.length) throw new Error("No parseable CSV rows found");
+    handleRows(mergedRows);
+
+    ["fStation","fFromDate","fToDate"].forEach(id =>
+      document.getElementById(id).addEventListener("input", refreshViews)
+    );
+  } catch (e) {
+    debug("Run error: " + e.message);
+    document.getElementById("status").textContent = "Error: " + e.message;
+  } finally {
+    document.getElementById("loading").style.display = "none";
+  }
+});
+
+btnClear.addEventListener("click", () => {
+  fileInput.value = "";
+  btnRun.disabled = true;
+  resetUI();
+});
+
+btnExport.addEventListener("click", exportFullCSV);
+btnExportSummary.addEventListener("click", exportChuteSummaryCSV);
+btnExportTransactions.addEventListener("click", exportTransactionsCSV);
+
+// initial
+resetUI();
+</script>
+</body>
+</html>
